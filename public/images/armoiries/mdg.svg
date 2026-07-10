@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">
+  <!-- Bouclier rouge, blanc, vert -->
+  <path d="M10,15 L90,15 L90,85 Q50,110 10,85 Z" fill="#FFFFFF"/>
+  <path d="M10,15 L30,15 L30,85 Q20,95 10,85 Z" fill="#FC3D32"/>
+  <path d="M10,15 L90,15 L90,85 Q50,110 10,85 Z" fill="none" stroke="#5a3e00" stroke-width="2.5"/>
+  <!-- Soleil rayonnant -->
+  <circle cx="60" cy="38" r="10" fill="#FFC107" opacity="0.9"/>
+  <g stroke="#FFC107" stroke-width="2" opacity="0.9">
+    <line x1="60" y1="22" x2="60" y2="18"/>
+    <line x1="60" y1="54" x2="60" y2="58"/>
+    <line x1="44" y1="38" x2="40" y2="38"/>
+    <line x1="76" y1="38" x2="80" y2="38"/>
+    <line x1="48.7" y1="26.7" x2="45.9" y2="23.9"/>
+    <line x1="71.3" y1="49.3" x2="74.1" y2="52.1"/>
+    <line x1="71.3" y1="26.7" x2="74.1" y2="23.9"/>
+    <line x1="48.7" y1="49.3" x2="45.9" y2="52.1"/>
+  </g>
+  <!-- Oiseau Sakimbahoaka -->
+  <ellipse cx="50" cy="62" rx="10" ry="7" fill="#007E3A"/>
+  <circle cx="50" cy="53" r="7" fill="#007E3A"/>
+  <path d="M43,60 Q30,52 28,62 Q35,65 43,62" fill="#007E3A"/>
+  <path d="M57,60 Q70,52 72,62 Q65,65 57,62" fill="#007E3A"/>
+  <path d="M47,65 Q50,73 53,65" fill="#007E3A"/>
+  <circle cx="48" cy="51" r="1.5" fill="#333"/>
+  <!-- Devise -->
+  <rect x="5" y="108" width="90" height="10" rx="3" fill="#FC3D32"/>
+  <text x="50" y="116" font-family="Arial" font-size="6" font-weight="bold" fill="white" text-anchor="middle">MADAGASCAR</text>
+</svg>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">
+  <!-- Bouclier tricolore -->
+  <path d="M10,15 L90,15 L90,85 Q50,110 10,85 Z" fill="#14B53A"/>
+  <path d="M43,15 L57,15 L57,95 Q52,99 48,99 Q45,98 43,95 Z" fill="#FCD116"/>
+  <path d="M57,15 L90,15 L90,85 Q73,98 57,95 Z" fill="#CE1126"/>
+  <path d="M10,15 L90,15 L90,85 Q50,110 10,85 Z" fill="none" stroke="#5a3e00" stroke-width="2.5"/>
+  <!-- Aigle stylisé -->
+  <ellipse cx="50" cy="50" rx="8" ry="10" fill="#8B4513"/>
+  <circle cx="50" cy="38" r="7" fill="#8B4513"/>
+  <!-- Ailes -->
+  <path d="M42,48 Q25,38 22,52 Q30,54 42,52" fill="#8B4513"/>
+  <path d="M58,48 Q75,38 78,52 Q70,54 58,52" fill="#8B4513"/>
+  <!-- Queue -->
+  <path d="M46,60 Q50,68 54,60" fill="#8B4513"/>
+  <!-- Bec -->
+  <path d="M48,42 L52,42 L50,46 Z" fill="#FCD116"/>
+  <!-- Oeil -->
+  <circle cx="49" cy="37" r="1.5" fill="#333"/>
+  <!-- Devise -->
+  <rect x="5" y="108" width="90" height="10" rx="3" fill="#14B53A"/>
+  <text x="50" y="116" font-family="Arial" font-size="7" font-weight="bold" fill="white" text-anchor="middle">MALI</text>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">
+  <!-- Bouclier blanc avec bandes vertes -->
+  <path d="M10,15 L90,15 L90,85 Q50,110 10,85 Z" fill="#FFFFFF"/>
+  <path d="M10,15 L30,15 L30,85 Q20,95 10,85 Z" fill="#008751"/>
+  <path d="M70,15 L90,15 L90,85 Q80,95 70,85 Z" fill="#008751"/>
+  <!-- Ligne noire verticale (Y) -->
+  <path d="M47,30 L50,45 L53,30 M50,45 L50,65" fill="none" stroke="#000" stroke-width="4" stroke-linecap="round"/>
+  <path d="M10,15 L90,15 L90,85 Q50,110 10,85 Z" fill="none" stroke="#5a3e00" stroke-width="2.5"/>
+  <!-- Aigles -->
+  <path d="M25,42 Q18,35 14,44 Q18,48 25,46" fill="#008751"/>
+  <path d="M75,42 Q82,35 86,44 Q82,48 75,46" fill="#008751"/>
+  <!-- Devise -->
+  <rect x="5" y="108" width="90" height="10" rx="3" fill="#008751"/>
+  <text x="50" y="116" font-family="Arial" font-size="7" font-weight="bold" fill="white" text-anchor="middle">NIGERIA</text>
+</svg>
