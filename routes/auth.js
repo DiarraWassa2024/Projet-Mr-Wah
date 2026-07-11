@@ -25,15 +25,17 @@ router.post('/register', authLimiter, async (req, res) => {
 
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return badRequest(res, 'Email et mot de passe requis');
+  // Accepte "email" (compat historique) ou "login"/"username" comme identifiant de connexion
+  const identifiant = req.body.login || req.body.username || req.body.email;
+  const { password } = req.body;
+  if (!identifiant || !password) return badRequest(res, 'Identifiant et mot de passe requis');
   try {
-    const user = await AuthService.login(email, password);
+    const user = await AuthService.login(identifiant, password);
     if (!user) {
       AuditService.log('CONNEXION', req, {
         module: 'Authentification',
-        details: `Échec connexion — email : ${email}`,
-        user: email,
+        details: `Échec connexion — identifiant : ${identifiant}`,
+        user: identifiant,
       }).catch(() => {});
       return res.status(401).json({ message: 'Identifiants invalides' });
     }

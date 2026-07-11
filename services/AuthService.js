@@ -15,8 +15,8 @@ const AuthService = {
     return UserRepository.create({ username, email, passwordHash: hash, role, isActive: 1 });
   },
 
-  async login(email, password) {
-    const user = await UserRepository.findByEmail(email);
+  async login(identifiant, password) {
+    const user = await UserRepository.findByLogin(identifiant);
     if (!user) return null;
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return null;

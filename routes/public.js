@@ -126,6 +126,23 @@ router.get('/organisations', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// GET /api/public/organisations/suggest?q=... — autocomplete instantané (organisations actives uniquement)
+router.get('/organisations/suggest', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const [rows] = await db.execute(
+      `SELECT o.NumAgr, o.LibOrg, o.SiegeOrg, t.LibTypOrg
+       FROM GPOTB01_Organisation o
+       LEFT JOIN GPOTB07_TypeOrganisation t ON t.IdTypOrg = o.IdTypOrg
+       WHERE o.IdStatut = 1 AND o.LibOrg LIKE ?
+       ORDER BY o.LibOrg ASC LIMIT 8`,
+      [`%${q}%`]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // POST /api/public/adhesion-multi — envoi d'un même dossier individu à plusieurs orgs
 router.post('/adhesion-multi', upload.fields([
   { name: 'photo',    maxCount: 1 },

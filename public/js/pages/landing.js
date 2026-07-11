@@ -3,12 +3,12 @@
 // ============================================================
 
 const PAYS_SOLIDEV = [
-  { code:'CIV', nom:"Côte d'Ivoire", drapeau:'🇨🇮', devise:'XOF', lang:'fr', timezone:'Africa/Abidjan'     },
-  { code:'MLI', nom:'Mali',           drapeau:'🇲🇱', devise:'XOF', lang:'fr', timezone:'Africa/Bamako'       },
-  { code:'SEN', nom:'Sénégal',        drapeau:'🇸🇳', devise:'XOF', lang:'fr', timezone:'Africa/Dakar'        },
-  { code:'BFA', nom:'Burkina Faso',   drapeau:'🇧🇫', devise:'XOF', lang:'fr', timezone:'Africa/Ouagadougou'  },
-  { code:'GHA', nom:'Ghana',          drapeau:'🇬🇭', devise:'GHS', lang:'en', timezone:'Africa/Accra'        },
-  { code:'NGA', nom:'Nigeria',        drapeau:'🇳🇬', devise:'NGN', lang:'en', timezone:'Africa/Lagos'        },
+  { code:'CIV', nom:"Côte d'Ivoire", drapeau:'🇨🇮', devise:'XOF', lang:'fr', timezone:'Africa/Abidjan'       },
+  { code:'MLI', nom:'Mali',           drapeau:'🇲🇱', devise:'XOF', lang:'fr', timezone:'Africa/Bamako'         },
+  { code:'SEN', nom:'Sénégal',        drapeau:'🇸🇳', devise:'XOF', lang:'fr', timezone:'Africa/Dakar'          },
+  { code:'BFA', nom:'Burkina Faso',   drapeau:'🇧🇫', devise:'XOF', lang:'fr', timezone:'Africa/Ouagadougou'    },
+  { code:'BEN', nom:'Bénin',          drapeau:'🇧🇯', devise:'XOF', lang:'fr', timezone:'Africa/Porto-Novo'     },
+  { code:'MDG', nom:'Madagascar',     drapeau:'🇲🇬', devise:'MGA', lang:'fr', timezone:'Indian/Antananarivo'   },
 ];
 
 const SD_I18N = {
@@ -241,6 +241,7 @@ router.register('landing', () => {
   setupBesoinsForm();
   setupConnexionForm();
   setupDonForm();
+  setupOrgSearch();
   applyLang(pays.lang);
   startClock(pays.timezone);
 });
@@ -269,6 +270,7 @@ function buildOnePager(pays) {
 <!-- ── HERO ── -->
 <section class="lp-hero" id="accueil">
   <div class="lp-hero-bg"></div>
+  <div class="lp-hero-pattern"></div>
   <div class="lp-hero-shape"></div>
   <div class="lp-hero-shape"></div>
   <div class="lp-hero-shape"></div>
@@ -303,6 +305,15 @@ function buildOnePager(pays) {
         <div class="lp-hero-card-title" data-i18n="cta_don">${t.cta_don}</div>
         <div class="lp-hero-card-sub">Soutenez SoliDev</div>
       </a>
+    </div>
+
+    <div class="lp-org-search" id="lpOrgSearch">
+      <div class="lp-org-search-box">
+        <span class="lp-org-search-icon">🔍</span>
+        <input type="text" id="lpOrgSearchInput" autocomplete="off"
+               placeholder="${t.orgSearchPh || 'Rechercher une organisation déjà inscrite…'}">
+      </div>
+      <div class="lp-org-suggestions" id="lpOrgSuggestions" style="display:none"></div>
     </div>
 
     <div class="lp-hero-scroll">▼</div>
@@ -825,6 +836,57 @@ function resetDonForm() {
   if(btn) { btn.disabled = false; document.getElementById('donBtnText').textContent = 'Confirmer le don'; }
 }
 
+// ── Recherche d'organisation (instantanée, avec suggestions) ──────
+function setupOrgSearch() {
+  const input = document.getElementById('lpOrgSearchInput');
+  const box   = document.getElementById('lpOrgSuggestions');
+  if (!input || !box) return;
+
+  let timer = null;
+  let currentReq = 0;
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    timer = setTimeout(() => runSearch(q), 250);
+  });
+
+  document.addEventListener('click', e => {
+    if (!box.contains(e.target) && e.target !== input) box.style.display = 'none';
+  });
+
+  async function runSearch(q) {
+    const reqId = ++currentReq;
+    try {
+      const res  = await fetch(`/api/public/organisations/suggest?q=${encodeURIComponent(q)}`);
+      const rows = await res.json();
+      if (reqId !== currentReq) return; // réponse obsolète (requête plus récente déjà lancée)
+      renderSuggestions(rows);
+    } catch (_) { box.style.display = 'none'; }
+  }
+
+  function renderSuggestions(rows) {
+    if (!rows.length) {
+      box.innerHTML = `<div class="lp-org-sugg-empty">Aucune organisation trouvée</div>`;
+      box.style.display = 'block';
+      return;
+    }
+    box.innerHTML = rows.map(o => `
+      <button type="button" class="lp-org-sugg-item" data-numagr="${o.NumAgr}">
+        <span class="lp-org-sugg-name">${o.LibOrg}</span>
+        <span class="lp-org-sugg-meta">${o.LibTypOrg || ''}${o.SiegeOrg ? ' · ' + o.SiegeOrg : ''}</span>
+      </button>
+    `).join('');
+    box.style.display = 'block';
+    box.querySelectorAll('.lp-org-sugg-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        landingNav('adhesion', { mode: 'individu', numAgr: btn.dataset.numagr });
+      });
+    });
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════
@@ -852,7 +914,7 @@ function detectCountryCode() {
     const match = PAYS_SOLIDEV.find(p => p.timezone === tz);
     if (match) return match.code;
   } catch (_) {}
-  return (navigator.language || 'fr').toLowerCase().startsWith('en') ? 'GHA' : 'CIV';
+  return 'CIV'; // tous les pays de la plateforme sont francophones
 }
 
 // ── Country selection ─────────────────────────────────────────

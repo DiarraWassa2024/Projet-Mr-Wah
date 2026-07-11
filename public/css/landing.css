@@ -100,6 +100,16 @@ body.lp-body {
   100% { opacity: .85; transform: scale(1.04); }
 }
 
+/* Motif thématique entraide/solidarité : anneaux entrelacés (union) tissés en trame,
+   dessinés en CSS/SVG pur — pas d'image téléchargée. */
+.lp-hero-pattern {
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Ccircle cx='55' cy='80' r='26' fill='none' stroke='%23f59e0b' stroke-width='1.4'/%3E%3Ccircle cx='95' cy='80' r='26' fill='none' stroke='%23059669' stroke-width='1.4'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23f59e0b'/%3E%3Ccircle cx='150' cy='150' r='3' fill='%23059669'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  opacity: .16;
+  mix-blend-mode: soft-light;
+}
+
 /* Geometric shapes */
 .lp-hero-shape {
   position: absolute; border-radius: 50%; opacity: .06;
@@ -171,6 +181,36 @@ body.lp-body {
 .lp-hero-card-icon { font-size: 28px; }
 .lp-hero-card-title { font-size: 14px; font-weight: 700; color: #fff; text-align: center; }
 .lp-hero-card-sub   { font-size: 11px; color: rgba(255,255,255,.5); text-align: center; }
+
+/* Recherche d'organisation (autocomplete) */
+.lp-org-search { position: relative; max-width: 460px; margin: 0 auto 32px; }
+.lp-org-search-box {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.08); backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,.15); border-radius: 100px;
+  padding: 12px 20px;
+}
+.lp-org-search-icon { font-size: 15px; opacity: .6; }
+.lp-org-search-box input {
+  flex: 1; background: none; border: none; outline: none;
+  color: #fff; font-size: 14px; font-family: inherit;
+}
+.lp-org-search-box input::placeholder { color: rgba(255,255,255,.45); }
+.lp-org-suggestions {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+  background: #fff; border-radius: 14px; box-shadow: var(--shadow-lg);
+  overflow: hidden; z-index: 20; text-align: left;
+}
+.lp-org-sugg-item {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  padding: 12px 18px; border: none; background: none; cursor: pointer;
+  border-bottom: 1px solid var(--c-gray100); text-align: left;
+}
+.lp-org-sugg-item:last-child { border-bottom: none; }
+.lp-org-sugg-item:hover { background: var(--c-gray50); }
+.lp-org-sugg-name { font-size: 14px; font-weight: 600; color: var(--c-gray800); }
+.lp-org-sugg-meta { font-size: 12px; color: var(--c-gray600); }
+.lp-org-sugg-empty { padding: 16px 18px; font-size: 13px; color: var(--c-gray600); text-align: center; }
 
 .lp-hero-scroll {
   color: rgba(255,255,255,.4); font-size: 13px;
@@ -279,10 +319,11 @@ body.lp-body {
   width: 100%; padding: 13px 16px;
   border: 1.5px solid var(--c-gray200);
   border-radius: 12px; font-size: 15px;
-  color: var(--c-gray800); background: var(--c-white);
-  transition: border-color var(--transition), box-shadow var(--transition);
+  color: var(--c-gray800); background: var(--c-gray50);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
   outline: none; font-family: inherit;
 }
+.lp-input:focus, .lp-select:focus, .lp-textarea:focus { background: var(--c-white); }
 .lp-input:focus, .lp-select:focus, .lp-textarea:focus {
   border-color: var(--c-indigo);
   box-shadow: 0 0 0 3px rgba(79,70,229,.12);

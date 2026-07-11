@@ -12,20 +12,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Charge la locale stockée (ou FR par défaut)
   await i18n.load(localStorage.getItem('gpo_lang') || 'fr');
 
-  // Lien de paiement d'adhésion reçu par email (?paiement=ID) — page publique, prioritaire
+  // Lien de paiement d'adhésion reçu par email (?paiement=ID sur la racine) — page publique, prioritaire
   const idPaiementLien = new URLSearchParams(location.search).get('paiement');
-  if (idPaiementLien) {
+  if (idPaiementLien && location.pathname === '/') {
     router.navigate('paiement-adhesion', { idPaiement: idPaiementLien });
     return;
   }
 
-  // Détermine la route initiale
+  // Prépare le shell (si connecté) puis résout la route depuis l'URL courante
+  // (gère les liens directs / le rafraîchissement de page sur n'importe quelle route)
   if (auth.isLoggedIn()) {
     showShell();
-    router.navigate('dashboard');
-  } else {
-    router.navigate('landing');
+    // Un utilisateur connecté qui arrive sur la racine "/" voit le tableau de bord, pas la vitrine
+    if (location.pathname === '/') { router.navigate('dashboard'); return; }
   }
+  router.resolveInitialRoute();
 });
 
 function showShell() {

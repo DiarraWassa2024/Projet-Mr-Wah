@@ -21,8 +21,8 @@ router.register('login', () => {
               <input type="text" id="username" required placeholder="${i18n.t('username')}">
             </div>` : ''}
             <div class="form-group">
-              <label>${i18n.t('email')}</label>
-              <input type="email" id="email" required placeholder="admin@gpo.org">
+              <label>${isRegister ? i18n.t('email') : i18n.t('loginField')}</label>
+              <input type="${isRegister ? 'email' : 'text'}" id="email" required placeholder="${isRegister ? 'admin@gpo.org' : 'admin'}">
             </div>
             <div class="form-group">
               <label>${i18n.t('password')}</label>
