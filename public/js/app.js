@@ -180,8 +180,15 @@ function showShell() {
             <span class="tb-date" id="tbDate">${new Date().toLocaleDateString(i18n.current(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
           <div class="tb-right">
-            <div class="lang-toggle" id="langToggle">
-              ${i18n.available().map(l => `<button data-lang="${l.code}" class="${i18n.current()===l.code?'active':''}" onclick="switchLang('${l.code}')">${l.flag} ${l.code.toUpperCase()}</button>`).join('')}
+            <!-- Lang menu -->
+            <div class="lang-menu" id="langMenu">
+              <button class="lang-menu-btn" onclick="toggleLangMenu(event)">
+                <span>${(i18n.available().find(l=>l.code===i18n.current())||{}).flag||''} ${i18n.current().toUpperCase()}</span>
+                <span class="tb-arrow">▾</span>
+              </button>
+              <div class="lang-dropdown" id="langDropdown">
+                ${i18n.available().map(l => `<button class="lang-item ${i18n.current()===l.code?'active':''}" onclick="closeLangMenu();switchLang('${l.code}')">${l.flag} ${l.label}</button>`).join('')}
+              </div>
             </div>
             <!-- User menu -->
             <div class="user-menu" id="userMenu">
@@ -279,6 +286,7 @@ async function switchLang(lang) {
 
 function toggleUserMenu(e) {
   e.stopPropagation();
+  closeLangMenu();
   document.getElementById('userMenu').classList.toggle('open');
 }
 
@@ -286,7 +294,20 @@ function closeUserMenu() {
   document.getElementById('userMenu')?.classList.remove('open');
 }
 
-document.addEventListener('click', closeUserMenu);
+function toggleLangMenu(e) {
+  e.stopPropagation();
+  closeUserMenu();
+  document.getElementById('langMenu')?.classList.toggle('open');
+}
+
+function closeLangMenu() {
+  document.getElementById('langMenu')?.classList.remove('open');
+}
+
+document.addEventListener('click', () => {
+  closeUserMenu();
+  document.querySelectorAll('.lang-menu.open').forEach(el => el.classList.remove('open'));
+});
 
 function doLogout() {
   auth.logout();

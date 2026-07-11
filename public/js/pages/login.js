@@ -33,14 +33,31 @@ router.register('login', () => {
               ${isRegister ? i18n.t('register') : i18n.t('login')}
             </button>
           </form>
-          <div class="lang-switch">
-            ${i18n.available().map(l => `<button onclick="i18n.load('${l.code}');router.navigate('login')" class="${i18n.current()===l.code?'active':''}">${l.flag} ${l.code.toUpperCase()}</button>`).join('')}
+          <div class="lang-menu lang-menu-center" id="loginLangMenu">
+            <button class="lang-menu-btn" id="loginLangBtn">
+              <span>${(i18n.available().find(l=>l.code===i18n.current())||{}).flag||''} ${i18n.current().toUpperCase()}</span>
+              <span class="tb-arrow">▾</span>
+            </button>
+            <div class="lang-dropdown" id="loginLangDropdown">
+              ${i18n.available().map(l => `<button class="lang-item ${i18n.current()===l.code?'active':''}" data-lang="${l.code}">${l.flag} ${l.label}</button>`).join('')}
+            </div>
           </div>
         </div>
       </div>`;
 
     document.getElementById('tabLogin').onclick    = () => { isRegister = false; render(); };
     document.getElementById('tabRegister').onclick = () => { isRegister = true;  render(); };
+
+    document.getElementById('loginLangBtn').addEventListener('click', e => {
+      e.stopPropagation();
+      document.getElementById('loginLangMenu').classList.toggle('open');
+    });
+    document.querySelectorAll('#loginLangDropdown .lang-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await i18n.load(btn.dataset.lang);
+        router.navigate('login');
+      });
+    });
 
     document.getElementById('authForm').onsubmit = async e => {
       e.preventDefault();
