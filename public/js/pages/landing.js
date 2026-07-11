@@ -468,11 +468,11 @@ function buildOnePager(pays) {
 
         <form id="formConnexion">
           <div class="lp-field">
-            <label>Email <span class="req">*</span></label>
+            <label>Login <span class="req">*</span></label>
             <div class="lp-input-icon">
               <span class="lp-field-ico">✉️</span>
-              <input class="lp-input" name="email" type="email" required
-                     placeholder="admin@solidev.org" autocomplete="email">
+              <input class="lp-input" name="email" type="text" required
+                     placeholder="admin" autocomplete="username">
             </div>
           </div>
           <div class="lp-field">
