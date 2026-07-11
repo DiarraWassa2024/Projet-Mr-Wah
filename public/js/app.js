@@ -49,22 +49,9 @@ function showShell() {
             </a>
           </div>
 
-          <!-- Gestion des organisations -->
+          <!-- Gestion (ordre : Individus, Organisations, Bénéficiaires, Demandes, Prestataires, Prestations, Habilitations) -->
           <div class="sb-group">
-            <div class="sb-group-label">Gestion des organisations</div>
-            <a class="sb-item" data-route="organisations" href="#" onclick="nav('organisations')">
-              <span class="sb-icon si-violet">🏢</span>
-              <span>Toutes les organisations</span>
-            </a>
-            <a class="sb-subitem" data-route="organisations-asso" href="#" onclick="navFiltered('organisations','Association')">
-              <span class="sb-dot" style="background:#3b82f6"></span>Associations
-            </a>
-            <a class="sb-subitem" data-route="organisations-ong" href="#" onclick="navFiltered('organisations','ONG')">
-              <span class="sb-dot" style="background:#10b981"></span>ONG
-            </a>
-            <a class="sb-subitem" data-route="organisations-mut" href="#" onclick="navFiltered('organisations','Mutuelle')">
-              <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
-            </a>
+            <div class="sb-group-label">Gestion</div>
             <a class="sb-item" data-route="adherents" href="#" onclick="nav('adherents')">
               <span class="sb-icon si-green">👥</span>
               <span>Individus</span>
@@ -78,27 +65,53 @@ function showShell() {
             <a class="sb-subitem" data-route="adherents-mut" href="#" onclick="navFilteredAdh('adherents','Mutuelle')">
               <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
             </a>
+            <a class="sb-item" data-route="organisations" href="#" onclick="nav('organisations')">
+              <span class="sb-icon si-violet">🏢</span>
+              <span>Toutes les organisations</span>
+            </a>
+            <a class="sb-subitem" data-route="organisations-asso" href="#" onclick="navFiltered('organisations','Association')">
+              <span class="sb-dot" style="background:#3b82f6"></span>Associations
+            </a>
+            <a class="sb-subitem" data-route="organisations-ong" href="#" onclick="navFiltered('organisations','ONG')">
+              <span class="sb-dot" style="background:#10b981"></span>ONG
+            </a>
+            <a class="sb-subitem" data-route="organisations-mut" href="#" onclick="navFiltered('organisations','Mutuelle')">
+              <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
+            </a>
             <a class="sb-item" data-route="beneficiaires" href="#" onclick="nav('beneficiaires')">
               <span class="sb-icon si-amber">🤝</span>
               <span>Bénéficiaires</span>
             </a>
-            <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
-              <span class="sb-icon si-orange">💰</span>
-              <span>Paiements</span>
+            <a class="sb-item" data-route="demandes" href="#" onclick="nav('demandes')" id="demNav">
+              <span class="sb-icon si-indigo">📨</span>
+              <span>Demandes d'adhésion</span>
+              <span class="sb-badge" id="demBadge" style="display:none"></span>
+            </a>
+            <a class="sb-item" data-route="prestataires" href="#" onclick="nav('prestataires')">
+              <span class="sb-icon si-red">🩺</span>
+              <span>Prestataires</span>
             </a>
             <a class="sb-item" data-route="prestations" href="#" onclick="nav('prestations')">
               <span class="sb-icon si-red">🛠️</span>
               <span>Prestations</span>
             </a>
+            <a class="sb-item" data-route="habilitation" href="#" onclick="nav('habilitation')">
+              <span class="sb-icon si-rose">🔐</span>
+              <span>Habilitations</span>
+            </a>
+          </div>
+
+          <!-- Opérations -->
+          <div class="sb-group">
+            <div class="sb-group-label">Opérations</div>
+            <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
+              <span class="sb-icon si-orange">💰</span>
+              <span>Paiements</span>
+            </a>
             <a class="sb-item" data-route="evenements" href="#" onclick="nav('evenements')">
               <span class="sb-icon si-teal">📅</span>
               <span>Événements</span>
             </a>
-          </div>
-
-          <!-- Gestion des opportunités -->
-          <div class="sb-group">
-            <div class="sb-group-label">Gestion des opportunités</div>
             <a class="sb-item" data-route="besoins-admin" href="#" onclick="nav('besoins-admin')">
               <span class="sb-icon si-cyan">📋</span>
               <span>Expression des Besoins</span>
@@ -109,16 +122,12 @@ function showShell() {
             </a>
           </div>
 
-          <!-- Gestion de la Plateforme -->
+          <!-- Administration -->
           <div class="sb-group">
-            <div class="sb-group-label">Gestion de la Plateforme</div>
+            <div class="sb-group-label">Administration</div>
             <a class="sb-item" data-route="utilisateurs" href="#" onclick="nav('utilisateurs')">
               <span class="sb-icon si-slate">👤</span>
               <span>Utilisateurs</span>
-            </a>
-            <a class="sb-item" data-route="habilitation" href="#" onclick="nav('habilitation')">
-              <span class="sb-icon si-rose">🔐</span>
-              <span>Habilitation</span>
             </a>
             <a class="sb-item" data-route="piste-audit" href="#" onclick="nav('piste-audit')">
               <span class="sb-icon si-stone">📜</span>
@@ -131,16 +140,6 @@ function showShell() {
             <a class="sb-item" data-route="impressions" href="#" onclick="nav('impressions')">
               <span class="sb-icon si-violet">🖨️</span>
               <span>Impressions</span>
-            </a>
-          </div>
-
-          <!-- Administration -->
-          <div class="sb-group">
-            <div class="sb-group-label">Administration</div>
-            <a class="sb-item" data-route="demandes" href="#" onclick="nav('demandes')" id="demNav">
-              <span class="sb-icon si-indigo">📨</span>
-              <span>Demandes d'adhésion</span>
-              <span class="sb-badge" id="demBadge" style="display:none"></span>
             </a>
           </div>
         </nav>

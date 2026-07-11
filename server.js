@@ -36,6 +36,7 @@ app.use('/api/beneficiaires', require('./routes/beneficiaires'));
 app.use('/api/paiements',     require('./routes/paiements'));
 app.use('/api/cotisations',   require('./routes/cotisations'));
 app.use('/api/prestations',   require('./routes/prestations'));
+app.use('/api/prestataires',  require('./routes/prestataires'));
 app.use('/api/evenements',    require('./routes/evenements'));
 app.use('/api/ref',           require('./routes/referentiels'));
 app.use('/api/demandes',      require('./routes/demandes'));
