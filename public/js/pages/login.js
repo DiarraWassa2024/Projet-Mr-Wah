@@ -34,8 +34,7 @@ router.register('login', () => {
             </button>
           </form>
           <div class="lang-switch">
-            <button onclick="i18n.load('fr');router.navigate('login')" class="${i18n.current()==='fr'?'active':''}">🇫🇷 FR</button>
-            <button onclick="i18n.load('en');router.navigate('login')" class="${i18n.current()==='en'?'active':''}">🇬🇧 EN</button>
+            ${i18n.available().map(l => `<button onclick="i18n.load('${l.code}');router.navigate('login')" class="${i18n.current()===l.code?'active':''}">${l.flag} ${l.code.toUpperCase()}</button>`).join('')}
           </div>
         </div>
       </div>`;

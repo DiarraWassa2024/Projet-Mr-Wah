@@ -41,7 +41,7 @@ function showShell() {
           <div class="sb-logo">SD</div>
           <div>
             <span class="sb-name">SoliDev</span>
-            <span class="sb-tagline">Plateforme associative</span>
+            <span class="sb-tagline" data-i18n="sbTagline">${i18n.t('sbTagline')}</span>
           </div>
         </div>
 
@@ -173,10 +173,14 @@ function showShell() {
             <button id="menuToggle" style="background:none;border:none;font-size:20px;display:none">☰</button>
             <h1 id="topTitle">SoliDev</h1>
           </div>
+          <div class="tb-center">
+            <span class="tb-username">${user.username}</span>
+            <span class="tb-date-sep">·</span>
+            <span class="tb-date" id="tbDate">${new Date().toLocaleDateString(i18n.current(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          </div>
           <div class="tb-right">
-            <div class="lang-toggle">
-              <button id="btnFR" class="${i18n.current()==='fr'?'active':''}" onclick="switchLang('fr')">🇫🇷 FR</button>
-              <button id="btnEN" class="${i18n.current()==='en'?'active':''}" onclick="switchLang('en')">🇬🇧 EN</button>
+            <div class="lang-toggle" id="langToggle">
+              ${i18n.available().map(l => `<button data-lang="${l.code}" class="${i18n.current()===l.code?'active':''}" onclick="switchLang('${l.code}')">${l.flag} ${l.code.toUpperCase()}</button>`).join('')}
             </div>
             <!-- User menu -->
             <div class="user-menu" id="userMenu">

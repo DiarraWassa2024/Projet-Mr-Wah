@@ -88,7 +88,6 @@ router.register('habilitation', async () => {
       <div class="hab-main-tabs">
         <button class="hab-main-tab ${activeTab==='roles'?'active':''}"    data-t="roles">🎭 Rôles <span class="adh-count">${allRoles.length}</span></button>
         <button class="hab-main-tab ${activeTab==='groupes'?'active':''}"  data-t="groupes">👥 Groupes <span class="adh-count">${allGroupes.length}</span></button>
-        <button class="hab-main-tab ${activeTab==='historique'?'active':''}" data-t="historique">📋 Historique</button>
       </div>
       <div id="hab-content"></div>`;
 
@@ -608,66 +607,10 @@ router.register('habilitation', async () => {
     });
   }
 
-  // ── HISTORIQUE GLOBAL TAB ────────────────────────────────────
-  async function renderHistoriqueGlobal() {
-    const content = document.getElementById('hab-content');
-    content.innerHTML = '<div style="padding:32px;text-align:center;color:#9ca3af">Chargement…</div>';
-    try {
-      const token = localStorage.getItem('gpo_token');
-      const r = await fetch('/api/roles/historique/global?limit=200', { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) throw new Error('Erreur API');
-      const hist = await r.json();
-      renderHistGlobal(hist.data || hist);
-    } catch(e) {
-      // Fallback: fetch per role
-      const all = [];
-      for (const role of allRoles) {
-        try {
-          const rows = await api.get(`/roles/${role.IdRole}/historique`);
-          rows.forEach(h => { h._roleName = role.LibRole; all.push(h); });
-        } catch(_) {}
-      }
-      all.sort((a,b) => new Date(b.DateAction) - new Date(a.DateAction));
-      renderHistGlobal(all.slice(0, 200));
-    }
-  }
-
-  function renderHistGlobal(hist) {
-    const content = document.getElementById('hab-content');
-    const ACTION_CFG = {
-      creation:     { icon: '✨', color: '#10b981' },
-      modification: { icon: '✏️', color: '#3b82f6' },
-      suppression:  { icon: '🗑️', color: '#ef4444' },
-    };
-    content.innerHTML = hist.length === 0
-      ? '<p style="color:#9ca3af;text-align:center;padding:48px">Aucun historique</p>'
-      : `<div class="hist-timeline">
-          ${hist.map(h => {
-            const cfg = ACTION_CFG[h.Action] || { icon: '•', color: '#6b7280' };
-            let detail = '';
-            try { const d = JSON.parse(h.Detail); detail = JSON.stringify(d, null, 2); } catch(_) { detail = h.Detail||''; }
-            return `
-            <div class="hist-timeline-item">
-              <div class="hist-dot" style="background:${cfg.color}">${cfg.icon}</div>
-              <div class="hist-timeline-body">
-                <div class="hist-timeline-header">
-                  <strong>${h._roleName || '—'}</strong>
-                  <span class="hist-action-badge" style="background:${cfg.color}18;color:${cfg.color}">${h.Action}</span>
-                  <span class="hist-timeline-date">${new Date(h.DateAction).toLocaleString('fr-FR')}</span>
-                </div>
-                <div class="hist-meta">par <strong>${h.AuteurNom||'—'}</strong></div>
-                ${detail ? `<pre class="hist-detail">${detail}</pre>` : ''}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>`;
-  }
-
   // ── Dispatch content ─────────────────────────────────────────
   function renderContent() {
     if      (activeTab === 'roles')      renderRoles();
     else if (activeTab === 'groupes')    renderGroupes();
-    else if (activeTab === 'historique') renderHistoriqueGlobal();
   }
 
   // ── Boot ─────────────────────────────────────────────────────
