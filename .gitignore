@@ -1,0 +1,7 @@
+node_modules/
+gpo.db
+gpo.db-shm
+gpo.db-wal
+.env
+public/uploads/*
+!public/uploads/.gitkeep
