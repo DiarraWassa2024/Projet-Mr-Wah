@@ -140,11 +140,21 @@ router.register('dashboard', async () => {
     }
 
     /* ── KPI cards ───────────────────────────────────────── */
+    const devises = stats.paiementsByDevise || [];
+    const multiDevise = devises.length > 1;
+    // Les montants dans des devises différentes ne peuvent pas être additionnés :
+    // on affiche soit le montant dans l'unique devise utilisée, soit le nombre de paiements si plusieurs devises coexistent.
+    const paiementsVal  = multiDevise ? (stats.recentPaiements ? devises.reduce((s,d)=>s+d.nb,0) : 0) : (stats.totalPaiements||0);
+    const paiementsUnit = multiDevise ? '' : (devises[0]?.symbole || 'F CFA');
+    const paiementsSub  = multiDevise
+      ? devises.map(d => `${fmtK(d.montant)} ${d.symbole}`).join(' · ')
+      : 'collectés';
+
     const kpis = [
       { label:'Organisations',  val:stats.organisations||0,       icon:'🏢', col:'blue',   sub:'associations actives' },
       { label:'Adhérents',      val:stats.adherents||0,           icon:'👥', col:'violet', sub:'membres enregistrés' },
       { label:'Bénéficiaires',  val:stats.beneficiaires||0,       icon:'🤝', col:'green',  sub:'personnes aidées' },
-      { label:'Paiements',      val:stats.totalPaiements||0,      icon:'💰', col:'amber',  sub:'FCFA collectés',   isCur:true },
+      { label:'Paiements',      val:paiementsVal,                 icon:'💰', col:'amber',  sub:paiementsSub, isCur:!multiDevise, curUnit:paiementsUnit },
       { label:'Dons reçus',     val:stats.donsTotal||0,           icon:'🎁', col:'pink',   sub:'FCFA de dons',     isCur:true },
       { label:'Prestations',    val:stats.prestations||0,         icon:'🛠️', col:'orange', sub:'services fournis' },
       { label:'Opportunités',   val:stats.opportunitesActives||0, icon:'🌟', col:'teal',   sub:'actives', nav:'opportunites' },
@@ -161,7 +171,7 @@ router.register('dashboard', async () => {
           ${k.nav && k.val > 0 ? `<div class="dk-alert-dot"></div>` : ''}
         </div>
         <div class="dk-value" data-target="${k.val}" data-cur="${!!k.isCur}">0</div>
-        ${k.isCur ? '<div class="dk-unit">FCFA</div>' : ''}
+        ${k.isCur ? `<div class="dk-unit">${k.curUnit || 'FCFA'}</div>` : ''}
         <div class="dk-label">${k.label}</div>
         <div class="dk-sub">${k.sub}</div>
         <div class="dk-bar"><div class="dk-bar-fill dk-fill-${k.col}" style="width:0"></div></div>
@@ -188,7 +198,7 @@ router.register('dashboard', async () => {
             </div>
           </div>
         </td>
-        <td><span class="dt-amount">${fmt(p.MontantPaiement)}<small> FCFA</small></span></td>
+        <td><span class="dt-amount">${fmt(p.MontantPaiement)}<small> ${p.DeviseSymbole || 'F CFA'}</small></span></td>
         <td><span class="dt-date">${fmtDate(p.DatePaiement,{day:'2-digit',month:'short',year:'numeric'})}</span></td>
         <td><span class="dt-status ${p.Statut==='Validé'?'st-ok':'st-pend'}">${p.Statut||'—'}</span></td>
       </tr>`).join('') || `<tr><td colspan="4" class="dt-empty">Aucun paiement enregistré</td></tr>`;
@@ -304,9 +314,9 @@ router.register('dashboard', async () => {
           <div class="dp-head">
             <div>
               <div class="dp-title">💰 Paiements</div>
-              <div class="dp-sub">Montants collectés (FCFA)</div>
+              <div class="dp-sub">Montants collectés${multiDevise ? '' : ' (' + (devises[0]?.symbole || 'FCFA') + ')'}</div>
             </div>
-            <div class="dp-chip dp-chip-blue">${fmtK(stats.totalPaiements||0)} FCFA</div>
+            <div class="dp-chip dp-chip-blue">${multiDevise ? paiementsSub : fmtK(stats.totalPaiements||0) + ' ' + (devises[0]?.symbole || 'FCFA')}</div>
           </div>
           <div class="dp-chart">${areaChart(payData,'#3b82f6','#6366f1','payChart',' FCFA')}</div>
         </div>

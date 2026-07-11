@@ -2,8 +2,10 @@ const router             = require('express').Router();
 const auth               = require('../middleware/auth');
 const roles              = require('../middleware/roles');
 const PaiementRepository = require('../repositories/PaiementRepository');
+const PaymentService     = require('../services/payment/PaymentService');
+const PAYMENT_PROVIDERS  = require('../config/paymentProviders');
 const { todayDate }      = require('../helpers/dateHelper');
-const { ok, created, badRequest, serverError } = require('../helpers/response');
+const { ok, created, badRequest, notFound, serverError } = require('../helpers/response');
 
 const STATUTS_VALID = ['En attente','Payé','Impayé','Validé','Rejeté','Remboursé'];
 
@@ -16,6 +18,26 @@ function genNumRecu(id) {
 router.get('/stats', auth, async (req, res) => {
   try { ok(res, await PaiementRepository.stats(req.query)); }
   catch(err) { serverError(res, err); }
+});
+
+/* ── GET /api/paiements/operateurs/:codePays ──────────────── */
+/* Liste des opérateurs mobile money disponibles pour un pays (sélection auto). */
+router.get('/operateurs/:codePays', auth, async (req, res) => {
+  const cfg = PaymentService.getOperateurs(req.params.codePays);
+  if (!cfg) return notFound(res, 'Aucun opérateur disponible pour ce pays');
+  ok(res, cfg);
+});
+
+/* ── POST /api/paiements/:id/payer ─────────────────────────── */
+/* Déclenche le paiement (simulé) via l'opérateur choisi. */
+router.post('/:id/payer', auth, async (req, res) => {
+  try {
+    const result = await PaymentService.payer(req.params.id, req.body);
+    ok(res, result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    serverError(res, err);
+  }
 });
 
 /* ── GET /api/paiements ───────────────────────────────────── */
@@ -45,6 +67,8 @@ router.post('/', auth, async (req, res) => {
     if (!MontantPaiement)    return badRequest(res, 'Montant obligatoire');
     if (!NumAgr && !idAdh)   return badRequest(res, 'Organisation ou adhérent obligatoire');
 
+    const deviseParDefaut = CodePays && PAYMENT_PROVIDERS[CodePays] ? PAYMENT_PROVIDERS[CodePays].devise : 'XOF';
+
     const result = await PaiementRepository.create({
       DatePaiement:    DatePaiement || todayDate(),
       MontantPaiement: Number(MontantPaiement),
@@ -53,7 +77,7 @@ router.post('/', auth, async (req, res) => {
       idAdh:           idAdh    || null,
       IdMoyPay:        IdMoyPay || null,
       NumAgr:          NumAgr   || null,
-      CodeDevise:      CodeDevise || 'FCFA',
+      CodeDevise:      CodeDevise || deviseParDefaut,
       CodePays:        CodePays || null,
       Reference:       Reference || null,
       NotePaiement:    NotePaiement || null,

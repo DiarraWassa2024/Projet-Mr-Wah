@@ -228,6 +228,8 @@ router.register('paiements', async () => {
           ${p.DateEcheance ? `${exp?'⚠️ ':''}${fmt(p.DateEcheance)}` : '—'}
         </td>
         <td class="pay-actions">
+          ${p.Statut !== 'Payé' && typeof PAYS_CONFIG !== 'undefined' && PAYS_CONFIG[p.CodePays]
+            ? `<button class="pay-btn pay-btn-online" data-id="${p.IdPaiement}" title="Payer en ligne">💳</button>` : ''}
           <button class="pay-btn pay-btn-recu"   data-id="${p.IdPaiement}" title="Reçu PDF">📄</button>
           <button class="pay-btn pay-btn-edit"   data-id="${p.IdPaiement}" title="Modifier">✏️</button>
           <button class="pay-btn pay-btn-statut" data-id="${p.IdPaiement}" data-statut="${esc(p.Statut||'')}" title="Changer statut">🔄</button>
@@ -235,6 +237,30 @@ router.register('paiements', async () => {
           <button class="pay-btn pay-btn-del"    data-id="${p.IdPaiement}" title="Supprimer">🗑️</button>
         </td>
       </tr>`;
+  }
+
+  /* ── Modal Paiement en ligne ─────────────────────────── */
+  function openOnlinePaymentModal(p) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="onlinePayModal">
+        <div class="modal" style="max-width:420px">
+          <div class="modal-header">
+            <h3>💳 Paiement en ligne</h3>
+            <button class="modal-close" id="closeOnlinePayModal">×</button>
+          </div>
+          <div id="onlinePayWidget" style="padding:20px"></div>
+        </div>
+      </div>`);
+    const close = () => document.getElementById('onlinePayModal')?.remove();
+    document.getElementById('closeOnlinePayModal').onclick = close;
+
+    renderPaymentWidget(document.getElementById('onlinePayWidget'), {
+      codePays: p.CodePays,
+      montant: p.MontantPaiement,
+      idPaiement: p.IdPaiement,
+      authenticated: true,
+      onSuccess: () => { showToast('Paiement confirmé', 'success'); setTimeout(() => { close(); reload(); }, 1200); },
+    });
   }
 
   function renderBreakdownCard(titre, data, keyField, valField) {
@@ -286,6 +312,12 @@ router.register('paiements', async () => {
     document.getElementById('btnAddEmpty')?.addEventListener('click', () => openModal());
     document.getElementById('btnExport')?.addEventListener('click', exportCSV);
 
+    document.querySelectorAll('.pay-btn-online').forEach(btn => {
+      btn.onclick = () => {
+        const p = paiements.find(x => String(x.IdPaiement) === String(btn.dataset.id));
+        if (p) openOnlinePaymentModal(p);
+      };
+    });
     document.querySelectorAll('.pay-btn-recu').forEach(btn => {
       btn.onclick = () => {
         const p = paiements.find(x => String(x.IdPaiement) === String(btn.dataset.id));

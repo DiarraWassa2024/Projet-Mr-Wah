@@ -4336,3 +4336,34 @@ body.landing-body {
   .dem-docs-list { flex-direction: column; }
   .adh-photo-row { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Widget de paiement mobile money ─────────────────────── */
+.pw-loading, .pw-error { padding: 16px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+.pw-error { color: #b91c1c; background: #fef2f2; border-radius: var(--radius); margin-top: 10px; }
+.pw-amount {
+  text-align: center; font-size: 28px; font-weight: 800; color: var(--primary);
+  margin-bottom: 16px;
+}
+.pw-amount span { font-size: 15px; color: var(--text-muted); font-weight: 600; }
+.pw-operators { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+.pw-op-btn {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+  border: 1.5px solid var(--border-color); border-radius: var(--radius);
+  background: var(--bg-secondary); cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--text-primary); transition: .15s;
+}
+.pw-op-btn:hover { border-color: var(--primary); }
+.pw-op-active { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
+.pw-op-icon { font-size: 16px; }
+.pw-form-group { margin-bottom: 14px; }
+.pw-form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.pw-form-group input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border-color);
+  border-radius: var(--radius); font-size: 14px;
+}
+.pw-pay-btn { font-size: 14px; padding: 12px; }
+.pw-note { margin-top: 10px; font-size: 11px; color: var(--text-muted); text-align: center; }
+.pw-success {
+  text-align: center; padding: 20px; background: #f0fdf4; color: #065f46;
+  border-radius: var(--radius); font-size: 14px; line-height: 1.8;
+}

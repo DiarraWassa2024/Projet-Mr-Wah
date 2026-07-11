@@ -41,12 +41,24 @@ const StatsService = {
       GROUP BY p.CodePays, p.LibPays ORDER BY total DESC`);
 
     const [recentPaiements] = await db.execute(`
-      SELECT pa.*, a.NomAdh, o.LibOrg
+      SELECT pa.*, a.NomAdh, o.LibOrg, d.Symbole AS DeviseSymbole
       FROM GPOTB08_Paiement pa
       LEFT JOIN GPOTB02_Adherent a ON pa.idAdh = a.idAdh
       LEFT JOIN GPOTB01_Organisation o ON pa.NumAgr = o.NumAgr
+      LEFT JOIN GPOTB27_Devise d ON pa.CodeDevise = d.CodeDevise
       ${dateCond('pa.DatePaiement', dateFrom, dateTo)}
       ORDER BY pa.DatePaiement DESC LIMIT 8`);
+
+    // ── Paiements groupés par devise (montants réels, pas de conversion) ──
+    const [paiementsByDevise] = await db.execute(`
+      SELECT COALESCE(pa.CodeDevise, 'XOF') AS devise,
+             COALESCE(d.Symbole, 'F CFA')   AS symbole,
+             COUNT(*) AS nb,
+             COALESCE(SUM(pa.MontantPaiement), 0) AS montant
+      FROM GPOTB08_Paiement pa
+      LEFT JOIN GPOTB27_Devise d ON pa.CodeDevise = d.CodeDevise
+      ${dateCond('pa.DatePaiement', dateFrom, dateTo)}
+      GROUP BY devise, symbole ORDER BY montant DESC`);
 
     const [recentAdherents] = await db.execute(`
       SELECT a.idAdh, a.NomAdh, a.PrenAdh, a.DateAdhesion, o.LibOrg
@@ -151,7 +163,7 @@ const StatsService = {
       opportunitesActives: oppsAgg.actives  || 0,
       cotisationsNb:       cotisAgg.nb      || 0,
       cotisationsMontant:  cotisAgg.montant || 0,
-      orgsByPays, recentPaiements, recentAdherents, monthlyPaiements, topOrgs,
+      orgsByPays, recentPaiements, recentAdherents, monthlyPaiements, topOrgs, paiementsByDevise,
       monthlyDons, recentDons, monthlyAdherents, adherentsByPays,
       oppsByStatut, recentOpportunites,
       dateFrom: dateFrom || null,
