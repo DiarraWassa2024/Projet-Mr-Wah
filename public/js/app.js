@@ -60,32 +60,38 @@ function showShell() {
           <!-- Gestion (ordre : Individus, Organisations, Bénéficiaires, Demandes, Prestataires, Prestations, Habilitations) -->
           <div class="sb-group">
             <div class="sb-group-label">Gestion</div>
-            <a class="sb-item" data-route="adherents" href="#" onclick="nav('adherents')">
+            <a class="sb-item sb-item-expand" data-route="adherents" href="#" onclick="nav('adherents')">
               <span class="sb-icon si-green">👥</span>
-              <span>Individus</span>
+              <span class="sb-item-label">Individus</span>
+              <span class="sb-caret" onclick="toggleSubgroup(event,'sub-adherents')">▾</span>
             </a>
-            <a class="sb-subitem" data-route="adherents-asso" href="#" onclick="navFilteredAdh('adherents','Association')">
-              <span class="sb-dot" style="background:#3b82f6"></span>Associations
-            </a>
-            <a class="sb-subitem" data-route="adherents-ong" href="#" onclick="navFilteredAdh('adherents','ONG')">
-              <span class="sb-dot" style="background:#10b981"></span>ONG
-            </a>
-            <a class="sb-subitem" data-route="adherents-mut" href="#" onclick="navFilteredAdh('adherents','Mutuelle')">
-              <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
-            </a>
-            <a class="sb-item" data-route="organisations" href="#" onclick="nav('organisations')">
+            <div class="sb-subgroup" id="sub-adherents">
+              <a class="sb-subitem" data-route="adherents-asso" href="#" onclick="navFilteredAdh('adherents','Association')">
+                <span class="sb-dot" style="background:#3b82f6"></span>Associations
+              </a>
+              <a class="sb-subitem" data-route="adherents-ong" href="#" onclick="navFilteredAdh('adherents','ONG')">
+                <span class="sb-dot" style="background:#10b981"></span>ONG
+              </a>
+              <a class="sb-subitem" data-route="adherents-mut" href="#" onclick="navFilteredAdh('adherents','Mutuelle')">
+                <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
+              </a>
+            </div>
+            <a class="sb-item sb-item-expand" data-route="organisations" href="#" onclick="nav('organisations')">
               <span class="sb-icon si-violet">🏢</span>
-              <span>Toutes les organisations</span>
+              <span class="sb-item-label">Toutes les organisations</span>
+              <span class="sb-caret" onclick="toggleSubgroup(event,'sub-organisations')">▾</span>
             </a>
-            <a class="sb-subitem" data-route="organisations-asso" href="#" onclick="navFiltered('organisations','Association')">
-              <span class="sb-dot" style="background:#3b82f6"></span>Associations
-            </a>
-            <a class="sb-subitem" data-route="organisations-ong" href="#" onclick="navFiltered('organisations','ONG')">
-              <span class="sb-dot" style="background:#10b981"></span>ONG
-            </a>
-            <a class="sb-subitem" data-route="organisations-mut" href="#" onclick="navFiltered('organisations','Mutuelle')">
-              <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
-            </a>
+            <div class="sb-subgroup" id="sub-organisations">
+              <a class="sb-subitem" data-route="organisations-asso" href="#" onclick="navFiltered('organisations','Association')">
+                <span class="sb-dot" style="background:#3b82f6"></span>Associations
+              </a>
+              <a class="sb-subitem" data-route="organisations-ong" href="#" onclick="navFiltered('organisations','ONG')">
+                <span class="sb-dot" style="background:#10b981"></span>ONG
+              </a>
+              <a class="sb-subitem" data-route="organisations-mut" href="#" onclick="navFiltered('organisations','Mutuelle')">
+                <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
+              </a>
+            </div>
             <a class="sb-item" data-route="beneficiaires" href="#" onclick="nav('beneficiaires')">
               <span class="sb-icon si-amber">🤝</span>
               <span>Bénéficiaires</span>
@@ -265,6 +271,7 @@ function navFiltered(route, typeFilter) {
   );
   document.getElementById('topTitle').textContent = typeFilter + 's';
   document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sub-organisations')?.classList.add('open');
   router.navigate(route);
 }
 
@@ -275,7 +282,15 @@ function navFilteredAdh(route, typeFilter) {
   );
   document.getElementById('topTitle').textContent = 'Individus — ' + typeFilter + 's';
   document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sub-adherents')?.classList.add('open');
   router.navigate(route);
+}
+
+function toggleSubgroup(e, id) {
+  e.stopPropagation();
+  e.preventDefault();
+  document.getElementById(id)?.classList.toggle('open');
+  e.currentTarget.classList.toggle('open');
 }
 
 async function switchLang(lang) {
