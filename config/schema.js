@@ -547,6 +547,8 @@ module.exports = function initSchema() {
     `ALTER TABLE GPOTB04_Personne ADD COLUMN Photo TEXT`,
     // GPOTB05_PrestataireMoral
     `ALTER TABLE GPOTB05_PrestataireMoral ADD COLUMN SiteWeb TEXT`,
+    `ALTER TABLE GPOTB05_PrestataireMoral ADD COLUMN IdStatut INTEGER REFERENCES GPOTB15_Statut(IdStatut)`,
+    `ALTER TABLE GPOTB05_PrestataireMoral ADD COLUMN DateCreation TEXT`,
     // GPOTB06_Beneficiaire
     `ALTER TABLE GPOTB06_Beneficiaire ADD COLUMN TypeBenef TEXT DEFAULT 'Personne'`,
     `ALTER TABLE GPOTB06_Beneficiaire ADD COLUMN NombreMembres INTEGER DEFAULT 1`,
@@ -555,6 +557,8 @@ module.exports = function initSchema() {
     `ALTER TABLE GPOTB08_Paiement ADD COLUMN CodeDevise TEXT`,
     `ALTER TABLE GPOTB08_Paiement ADD COLUMN TypePaiement TEXT DEFAULT 'Cotisation'`,
     `ALTER TABLE GPOTB08_Paiement ADD COLUMN NotePaiement TEXT`,
+    `ALTER TABLE GPOTB08_Paiement ADD COLUMN idDemande INTEGER REFERENCES SD_DemandeAdhesion(idDemande)`,
+    `ALTER TABLE GPOTB08_Paiement ADD COLUMN Operateur TEXT`,
     // GPOTB10_ReglementInterieur
     `ALTER TABLE GPOTB10_ReglementInterieur ADD COLUMN DateAdoption TEXT`,
     `ALTER TABLE GPOTB10_ReglementInterieur ADD COLUMN Contenu TEXT`,
@@ -564,6 +568,7 @@ module.exports = function initSchema() {
     `ALTER TABLE GPOTB14_Cotisation ADD COLUMN CodeDevise TEXT`,
     `ALTER TABLE GPOTB14_Cotisation ADD COLUMN TypeCotisation TEXT DEFAULT 'Mensuelle'`,
     `ALTER TABLE GPOTB14_Cotisation ADD COLUMN Obligatoire INTEGER DEFAULT 1`,
+    `ALTER TABLE GPOTB14_Cotisation ADD COLUMN EstDefaut INTEGER DEFAULT 0`,
     // GPOTB16_Prestation
     `ALTER TABLE GPOTB16_Prestation ADD COLUMN Description TEXT`,
     `ALTER TABLE GPOTB16_Prestation ADD COLUMN CodeDevise TEXT`,
@@ -572,6 +577,8 @@ module.exports = function initSchema() {
     // GPOTB18_PrestatairePhysique
     `ALTER TABLE GPOTB18_PrestatairePhysique ADD COLUMN EmailPrestataire TEXT`,
     `ALTER TABLE GPOTB18_PrestatairePhysique ADD COLUMN Specialite TEXT`,
+    `ALTER TABLE GPOTB18_PrestatairePhysique ADD COLUMN IdStatut INTEGER REFERENCES GPOTB15_Statut(IdStatut)`,
+    `ALTER TABLE GPOTB18_PrestatairePhysique ADD COLUMN DateCreation TEXT`,
     // GPOTB21_Evenement
     `ALTER TABLE GPOTB21_Evenement ADD COLUMN DateDebut TEXT`,
     `ALTER TABLE GPOTB21_Evenement ADD COLUMN DateFin TEXT`,
@@ -861,8 +868,15 @@ module.exports = function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_rolehist_role        ON SD_RoleHistorique(IdRole)`,
     `CREATE INDEX IF NOT EXISTS idx_rolehist_date        ON SD_RoleHistorique(DateAction)`,
     `CREATE INDEX IF NOT EXISTS idx_groupe_createur      ON GPOTB31_GroupeUtilisateur(idCreateur)`,
+    `CREATE INDEX IF NOT EXISTS idx_paiement_idDemande   ON GPOTB08_Paiement(idDemande)`,
+    `CREATE INDEX IF NOT EXISTS idx_prestmoral_statut    ON GPOTB05_PrestataireMoral(IdStatut)`,
+    `CREATE INDEX IF NOT EXISTS idx_prestphys_statut     ON GPOTB18_PrestatairePhysique(IdStatut)`,
   ];
   idxPost.forEach(sql => { try { db.exec(sql); } catch(_) {} });
+
+  // Prestataires existants sans statut : positionner "En attente" (IdStatut 4) par défaut
+  try { db.exec(`UPDATE GPOTB05_PrestataireMoral SET IdStatut = 4 WHERE IdStatut IS NULL`); } catch(_) {}
+  try { db.exec(`UPDATE GPOTB18_PrestatairePhysique SET IdStatut = 4 WHERE IdStatut IS NULL`); } catch(_) {}
 
   // ============================================================
   // SEED — 7 rôles système (idempotent)
