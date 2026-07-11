@@ -8,6 +8,7 @@ const UserRepository         = require('../repositories/UserRepository');
 const AuthService            = require('./AuthService');
 const AuditService           = require('./AuditService');
 const emailSvc               = require('./email');
+const notificationSvc        = require('./notification');
 const { nowISO, todayDate }  = require('../helpers/dateHelper');
 const PAYMENT_PROVIDERS      = require('../config/paymentProviders');
 
@@ -62,6 +63,15 @@ async function genererIdentifiantUnique(base) {
 
 function genererMotDePasse() {
   return crypto.randomBytes(9).toString('base64url'); // ~12 caractères lisibles, URL-safe
+}
+
+async function genererCodeConfirmationUnique() {
+  for (let i = 0; i < 20; i++) {
+    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 chiffres
+    const [rows] = await db.execute('SELECT 1 FROM GPOTB08_Paiement WHERE CodeConfirmation = ?', [code]);
+    if (!rows.length) return code;
+  }
+  throw new Error('Impossible de générer un code de confirmation unique');
 }
 
 const DemandeService = {
@@ -130,17 +140,20 @@ const DemandeService = {
     const formules    = await getFormulesCotisation(numAgrCible, codeDevise);
     const montantAnnuel = formules.Annuelle;
 
+    const codeConfirmation = await genererCodeConfirmationUnique();
+
     const payResult = await PaiementRepository.create({
-      DatePaiement:    todayDate(),
-      MontantPaiement: montantAnnuel,
-      Statut:          'En attente',
-      TypePaiement:    'Adhésion',
-      idAdh:           idAdhCible,
-      NumAgr:          numAgrCible,
-      CodeDevise:      codeDevise,
-      CodePays:        demande.codePays || null,
-      idDemande:       demande.idDemande,
-      ObjetPaiement:   'Cotisation annuelle — adhésion SoliDev',
+      DatePaiement:      todayDate(),
+      MontantPaiement:   montantAnnuel,
+      Statut:            'En attente',
+      TypePaiement:      'Adhésion',
+      idAdh:             idAdhCible,
+      NumAgr:            numAgrCible,
+      CodeDevise:        codeDevise,
+      CodePays:          demande.codePays || null,
+      idDemande:         demande.idDemande,
+      ObjetPaiement:     'Cotisation annuelle — adhésion SoliDev',
+      CodeConfirmation:  codeConfirmation,
     });
     const idPaiement = payResult.insertId;
 
@@ -149,13 +162,29 @@ const DemandeService = {
     const mailResult = await emailSvc.sendMail(
       emailSvc.emailAccepteeDoitPayer(demande, { idPaiement, ...formules })
     );
+
+    const telephone = (demande.telOrg || demande.repTel || '').trim();
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const smsResult = await notificationSvc.sendNotification({
+      to: telephone,
+      channel: process.env.NOTIFICATION_CHANNEL || 'whatsapp',
+      message: `SoliDev ✅ Votre demande d'adhésion est acceptée !\n`
+        + `Code de confirmation : ${codeConfirmation}\n`
+        + `Rendez-vous sur ${appUrl}/verification pour régler votre cotisation (${Number(formules.Annuelle).toLocaleString('fr-FR')} ${formules.CodeDevise}/an) et recevoir vos identifiants.`,
+    });
+
     await AuditService.log('ACCEPTER_DEMANDE', null, {
       table: 'SD_DemandeAdhesion', id: demande.idDemande,
-      details: `Organisation: ${demande.nomOrg} | En attente de paiement | Email: ${mailResult.ok ? 'envoyé' : 'échec'}`,
+      details: `Organisation: ${demande.nomOrg} | En attente de paiement | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
       user: adminUser,
     });
 
-    return { message: 'Demande acceptée — email de paiement envoyé', emailSent: mailResult.ok, idPaiement };
+    return {
+      message: 'Demande acceptée — email et code de confirmation envoyés',
+      emailSent: mailResult.ok,
+      notificationSent: smsResult.ok,
+      idPaiement,
+    };
   },
 
   /**

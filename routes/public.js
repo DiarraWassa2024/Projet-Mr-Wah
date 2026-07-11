@@ -310,17 +310,44 @@ router.get('/paiement/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// POST /api/public/verifier-code — résout un code de confirmation reçu par SMS/WhatsApp
+router.post('/verifier-code', async (req, res) => {
+  try {
+    const code = (req.body.code || '').trim();
+    if (!code) return res.status(400).json({ message: 'Code requis' });
+
+    const [[pay]] = await db.execute(
+      `SELECT * FROM GPOTB08_Paiement WHERE CodeConfirmation = ? AND idDemande IS NOT NULL`, [code]
+    );
+    if (!pay) return res.status(404).json({ message: 'Code invalide' });
+    if (pay.Statut === 'Payé') return res.status(400).json({ message: 'Ce code a déjà été utilisé (paiement déjà confirmé)' });
+
+    const full = await PaiementRepository.findByIdFull(pay.IdPaiement);
+    res.json({
+      IdPaiement: full.IdPaiement,
+      MontantPaiement: full.MontantPaiement,
+      CodeDevise: full.CodeDevise,
+      CodePays: full.CodePays,
+      Statut: full.Statut,
+      Nom: full.NomAdh ? `${full.PrenAdh || ''} ${full.NomAdh}`.trim() : full.LibOrg,
+      ObjetPaiement: full.ObjetPaiement,
+    });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // POST /api/public/paiement/:id/payer — règle la cotisation d'adhésion (simulé) puis active le compte
 router.post('/paiement/:id/payer', async (req, res) => {
   try {
     const pay = await PaiementRepository.findByIdFull(req.params.id);
     if (!pay || !pay.idDemande) return res.status(404).json({ message: 'Paiement introuvable' });
 
-    // Garde-fou léger : l'appelant doit connaître l'email associé au dossier de demande
-    const { email } = req.body;
+    // Garde-fou : l'appelant doit connaître soit l'email du dossier, soit le code de confirmation reçu par SMS/WhatsApp
+    const { email, code } = req.body;
     const [[demande]] = await db.execute('SELECT emailOrg FROM SD_DemandeAdhesion WHERE idDemande = ?', [pay.idDemande]);
-    if (!demande || !email || demande.emailOrg.toLowerCase() !== String(email).toLowerCase())
-      return res.status(403).json({ message: "L'email ne correspond pas au dossier de la demande" });
+    const emailMatches = demande && email && demande.emailOrg.toLowerCase() === String(email).toLowerCase();
+    const codeMatches  = code && pay.CodeConfirmation && String(code).trim() === String(pay.CodeConfirmation);
+    if (!emailMatches && !codeMatches)
+      return res.status(403).json({ message: 'Vérification échouée (email ou code invalide)' });
 
     const result = await PaymentService.payer(req.params.id, req.body);
     if (result.success && result.idDemande) {

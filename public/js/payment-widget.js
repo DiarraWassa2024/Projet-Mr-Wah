@@ -9,10 +9,11 @@
  *   montant       {number}
  *   idPaiement    {number}
  *   authenticated {boolean}  — true = passe par api.js (JWT admin), false = endpoints publics
- *   email         {string}   — requis en mode public (vérifie que l'appelant connaît l'email du dossier)
+ *   email         {string}   — mode public : preuve d'accès via l'email du dossier (ou `code`, voir ci-dessous)
+ *   code          {string}   — mode public : preuve d'accès via le code de confirmation reçu par SMS/WhatsApp
  *   onSuccess     {function}
  */
-async function renderPaymentWidget(container, { codePays, montant, idPaiement, authenticated = true, email = '', onSuccess } = {}) {
+async function renderPaymentWidget(container, { codePays, montant, idPaiement, authenticated = true, email = '', code = '', onSuccess } = {}) {
   if (!container) return;
 
   const opsUrl = authenticated ? `/paiements/operateurs/${codePays}` : `/public/paiement-operateurs/${codePays}`;
@@ -82,7 +83,7 @@ async function renderPaymentWidget(container, { codePays, montant, idPaiement, a
       btn.textContent = '⏳ Paiement en cours…';
       try {
         const body = { operateur: selected, telephone: tel };
-        if (!authenticated) body.email = email;
+        if (!authenticated) { body.email = email; body.code = code; }
         const result = await apiPost(payUrl, body);
         container.innerHTML = `
           <div class="pw-success">

@@ -559,6 +559,7 @@ module.exports = function initSchema() {
     `ALTER TABLE GPOTB08_Paiement ADD COLUMN NotePaiement TEXT`,
     `ALTER TABLE GPOTB08_Paiement ADD COLUMN idDemande INTEGER REFERENCES SD_DemandeAdhesion(idDemande)`,
     `ALTER TABLE GPOTB08_Paiement ADD COLUMN Operateur TEXT`,
+    `ALTER TABLE GPOTB08_Paiement ADD COLUMN CodeConfirmation TEXT`,
     // GPOTB10_ReglementInterieur
     `ALTER TABLE GPOTB10_ReglementInterieur ADD COLUMN DateAdoption TEXT`,
     `ALTER TABLE GPOTB10_ReglementInterieur ADD COLUMN Contenu TEXT`,
@@ -871,6 +872,7 @@ module.exports = function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_paiement_idDemande   ON GPOTB08_Paiement(idDemande)`,
     `CREATE INDEX IF NOT EXISTS idx_prestmoral_statut    ON GPOTB05_PrestataireMoral(IdStatut)`,
     `CREATE INDEX IF NOT EXISTS idx_prestphys_statut     ON GPOTB18_PrestatairePhysique(IdStatut)`,
+    `CREATE INDEX IF NOT EXISTS idx_paiement_code        ON GPOTB08_Paiement(CodeConfirmation)`,
   ];
   idxPost.forEach(sql => { try { db.exec(sql); } catch(_) {} });
 

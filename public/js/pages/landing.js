@@ -488,6 +488,11 @@ function buildOnePager(pays) {
             <span id="cnxBtnText">Se connecter</span>
           </button>
         </form>
+        <p style="text-align:center;margin-top:16px;font-size:13px">
+          <a href="#" onclick="event.preventDefault();landingNav('verification')" style="color:var(--c-indigo);font-weight:600">
+            📱 Vous avez reçu un code de confirmation par SMS/WhatsApp ?
+          </a>
+        </p>
       </div>
     </div>
   </div>
