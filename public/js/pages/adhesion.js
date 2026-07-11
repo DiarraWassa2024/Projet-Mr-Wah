@@ -1,3 +1,23 @@
+// Change le logo et affiche le drapeau du pays sélectionné, alignés avec "SoliDev" en en-tête.
+function updateHeaderBrand(code) {
+  const logoBox = document.getElementById('adhLogoBox');
+  const badge   = document.getElementById('adhFlagBadge');
+  if (!logoBox || !badge) return;
+
+  const p = code ? getPays(code) : null;
+  if (p) {
+    logoBox.innerHTML = `<img src="${p.armoirie}" alt="${p.nom}" class="adh-logo-armoirie">`;
+    logoBox.classList.add('adh-logo-country');
+    badge.style.display = 'flex';
+    badge.innerHTML = `<img src="${p.drapeauSvg}" alt="${p.nom}" class="adh-flag-badge-img"><span>${p.nom}</span>`;
+  } else {
+    logoBox.textContent = 'SD';
+    logoBox.classList.remove('adh-logo-country');
+    badge.style.display = 'none';
+    badge.innerHTML = '';
+  }
+}
+
 router.register('adhesion', async (params = {}) => {
   const mode = params.mode || (
     ['Association','ONG','Mutuelle'].includes(params.type) ? 'organisation' :
@@ -48,8 +68,11 @@ router.register('adhesion', async (params = {}) => {
       <div class="pub-form-card adh-card">
 
         <div class="pub-form-logo">
-          <div class="logo-sm">SD</div>
-          <span>SoliDev</span>
+          <div class="pub-form-brand">
+            <div class="logo-sm" id="adhLogoBox">SD</div>
+            <span>SoliDev</span>
+          </div>
+          <div class="adh-flag-badge" id="adhFlagBadge" style="display:none"></div>
         </div>
 
         <h2>Demande d'adhésion</h2>
@@ -93,7 +116,7 @@ router.register('adhesion', async (params = {}) => {
             <div class="adh-pays-banner">
               <div class="adh-pays-label">🌍 Pays où l'activité est exercée</div>
               <select name="pays" id="paysSelect" required class="adh-pays-select"
-                      onchange="onPaysChange(this.value)">
+                      onchange="onPaysChange(this.value); updateHeaderBrand(this.value)">
                 <option value="">Sélectionner le pays…</option>
                 ${paysOpts()}
               </select>
@@ -239,7 +262,7 @@ router.register('adhesion', async (params = {}) => {
             <div class="adh-pays-banner">
               <div class="adh-pays-label">🌍 Votre pays de résidence</div>
               <select name="pays" id="paysIndividu" required class="adh-pays-select"
-                      onchange="onPaysChange(this.value, true)">
+                      onchange="onPaysChange(this.value, true); updateHeaderBrand(this.value)">
                 <option value="">Sélectionner le pays…</option>
                 ${paysOpts()}
               </select>
