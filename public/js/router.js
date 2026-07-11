@@ -4,7 +4,7 @@ const router = (() => {
   function register(name, fn) { routes[name] = fn; }
 
   function navigate(name, params = {}) {
-    const publicRoutes = ['login','landing','adhesion','expression-besoins','don'];
+    const publicRoutes = ['login','landing','adhesion','expression-besoins','don','paiement-adhesion'];
     if (!auth.isLoggedIn() && !publicRoutes.includes(name)) {
       name = 'landing';
     }

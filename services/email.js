@@ -118,6 +118,88 @@ function emailRefusee(demande, motif) {
   };
 }
 
+function emailAccepteeDoitPayer(demande, { idPaiement, Mensuelle, Annuelle, CodeDevise }) {
+  const paymentUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?paiement=${idPaiement}`;
+  const fmt = n => Number(n || 0).toLocaleString('fr-FR');
+
+  const html = wrapHtml(`
+    <div class="hdr">
+      <h1>🎉 Demande acceptée</h1>
+      <p>SoliDev – Plateforme Panafricaine des Associations</p>
+    </div>
+    <div class="body">
+      <p>Bonjour <strong>${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg}</strong>,</p>
+      <p>Nous avons le plaisir de vous informer que votre demande d'adhésion pour
+         <strong>${demande.nomOrg}</strong> a été <strong style="color:#059669">acceptée</strong>.</p>
+      <div class="highlight warn">
+        ⏳ Il ne reste qu'une étape : le règlement de votre cotisation pour activer définitivement votre accès.
+      </div>
+      <p>Choisissez la formule qui vous convient :</p>
+      <ul style="color:#374151;font-size:14px;line-height:2">
+        <li>Abonnement <strong>Mensuel</strong> : <strong>${fmt(Mensuelle)} ${CodeDevise}</strong></li>
+        <li>Abonnement <strong>Annuel</strong> : <strong>${fmt(Annuelle)} ${CodeDevise}</strong> (formule proposée par défaut)</li>
+      </ul>
+      <p style="text-align:center">
+        <a href="${paymentUrl}" class="btn">Procéder au paiement →</a>
+      </p>
+      <p style="color:#6b7280;font-size:13px">
+        Dès la confirmation de votre paiement, vous recevrez automatiquement vos identifiants de connexion.
+      </p>
+    </div>
+    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
+  `);
+
+  const text = `Bonjour ${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg},\n\n`
+    + `Votre demande d'adhésion pour "${demande.nomOrg}" a été ACCEPTÉE.\n`
+    + `Il vous reste à régler votre cotisation :\n`
+    + `- Mensuel : ${fmt(Mensuelle)} ${CodeDevise}\n- Annuel : ${fmt(Annuelle)} ${CodeDevise}\n\n`
+    + `Payer ici : ${paymentUrl}`;
+
+  return {
+    to: demande.emailOrg,
+    from: FROM,
+    subject: `✅ Demande acceptée — Cotisation à régler | ${demande.nomOrg}`,
+    html,
+    text,
+  };
+}
+
+function emailIdentifiants({ nom, email, username, password }) {
+  const loginUrl = process.env.APP_URL || 'http://localhost:3000';
+
+  const html = wrapHtml(`
+    <div class="hdr" style="background:linear-gradient(135deg,#059669,#10b981)">
+      <h1>🔑 Vos identifiants SoliDev</h1>
+      <p>SoliDev – Plateforme Panafricaine des Associations</p>
+    </div>
+    <div class="body">
+      <p>Bonjour <strong>${nom || ''}</strong>,</p>
+      <p>Votre paiement a bien été confirmé — votre compte est maintenant <strong style="color:#059669">actif</strong>.
+         Voici vos identifiants de connexion :</p>
+      <div class="highlight">
+        Identifiant : <strong style="font-family:monospace">${username}</strong><br>
+        Mot de passe : <strong style="font-family:monospace">${password}</strong>
+      </div>
+      <p style="color:#7c2d12;background:#fff7ed;border-radius:8px;padding:10px 14px;font-size:13px">
+        ⚠️ Ce mot de passe ne sera communiqué qu'une seule fois. Conservez-le en lieu sûr et changez-le dès votre première connexion.
+      </p>
+      <a href="${loginUrl}" class="btn">Se connecter à SoliDev →</a>
+    </div>
+    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
+  `);
+
+  const text = `Bonjour ${nom || ''},\n\nVotre paiement est confirmé, votre compte est actif.\n`
+    + `Identifiant : ${username}\nMot de passe : ${password}\n\nConnexion : ${loginUrl}`;
+
+  return {
+    to: email,
+    from: FROM,
+    subject: `🔑 Vos identifiants de connexion — SoliDev`,
+    html,
+    text,
+  };
+}
+
 function emailNouvelleDemande(demande) {
   const text = `Nouvelle demande d'adhésion reçue.\n\n`
     + `Organisation : ${demande.nomOrg}\nType : ${demande.typeOrg}\nEmail : ${demande.emailOrg}\n`
@@ -142,4 +224,4 @@ async function sendMail(opts) {
   }
 }
 
-module.exports = { sendMail, emailAcceptee, emailRefusee, emailNouvelleDemande };
+module.exports = { sendMail, emailAcceptee, emailRefusee, emailNouvelleDemande, emailAccepteeDoitPayer, emailIdentifiants };

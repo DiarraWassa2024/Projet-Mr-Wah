@@ -73,12 +73,12 @@ class DemandeRepository extends BaseRepository {
     };
   }
 
-  async accept(id, adminUsername, now, ancienStatut) {
+  async accept(id, adminUsername, now, ancienStatut, nouveauStatutAdhesion = 'Actif') {
     await this.update(id, {
-      statut: 'Acceptée', statutAdhesion: 'Actif',
+      statut: 'Acceptée', statutAdhesion: nouveauStatutAdhesion,
       dateTraitement: now, adminTraitement: adminUsername,
     });
-    await this.logHistorique(id, ancienStatut, 'Actif', adminUsername, 'Demande acceptée');
+    await this.logHistorique(id, ancienStatut, nouveauStatutAdhesion, adminUsername, 'Demande acceptée');
   }
 
   async refuse(id, adminUsername, now, motif, ancienStatut) {

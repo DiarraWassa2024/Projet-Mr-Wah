@@ -1,8 +1,11 @@
-const router = require('express').Router();
-const db     = require('../config/database');
-const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs');
+const router             = require('express').Router();
+const db                 = require('../config/database');
+const multer             = require('multer');
+const path               = require('path');
+const fs                 = require('fs');
+const PaymentService     = require('../services/payment/PaymentService');
+const PaiementRepository = require('../repositories/PaiementRepository');
+const DemandeService     = require('../services/DemandeService');
 
 // ── File upload config ────────────────────────────────────────
 const uploadDir = path.join(__dirname, '../public/uploads');
@@ -256,6 +259,53 @@ router.post('/don', async (req, res) => {
     );
     res.status(201).json({ message: 'Don enregistré avec succès', id: result.insertId });
   } catch(err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/public/paiement-operateurs/:codePays — opérateurs disponibles (paiement d'adhésion public)
+router.get('/paiement-operateurs/:codePays', async (req, res) => {
+  const cfg = PaymentService.getOperateurs(req.params.codePays);
+  if (!cfg) return res.status(404).json({ message: 'Aucun opérateur disponible pour ce pays' });
+  res.json(cfg);
+});
+
+// GET /api/public/paiement/:id — récapitulatif public d'un paiement d'adhésion (champs limités)
+router.get('/paiement/:id', async (req, res) => {
+  try {
+    const pay = await PaiementRepository.findByIdFull(req.params.id);
+    if (!pay || !pay.idDemande) return res.status(404).json({ message: 'Paiement introuvable' });
+    res.json({
+      IdPaiement: pay.IdPaiement,
+      MontantPaiement: pay.MontantPaiement,
+      CodeDevise: pay.CodeDevise,
+      CodePays: pay.CodePays,
+      Statut: pay.Statut,
+      Nom: pay.NomAdh ? `${pay.PrenAdh || ''} ${pay.NomAdh}`.trim() : pay.LibOrg,
+      ObjetPaiement: pay.ObjetPaiement,
+    });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST /api/public/paiement/:id/payer — règle la cotisation d'adhésion (simulé) puis active le compte
+router.post('/paiement/:id/payer', async (req, res) => {
+  try {
+    const pay = await PaiementRepository.findByIdFull(req.params.id);
+    if (!pay || !pay.idDemande) return res.status(404).json({ message: 'Paiement introuvable' });
+
+    // Garde-fou léger : l'appelant doit connaître l'email associé au dossier de demande
+    const { email } = req.body;
+    const [[demande]] = await db.execute('SELECT emailOrg FROM SD_DemandeAdhesion WHERE idDemande = ?', [pay.idDemande]);
+    if (!demande || !email || demande.emailOrg.toLowerCase() !== String(email).toLowerCase())
+      return res.status(403).json({ message: "L'email ne correspond pas au dossier de la demande" });
+
+    const result = await PaymentService.payer(req.params.id, req.body);
+    if (result.success && result.idDemande) {
+      await DemandeService.completerApresPaiement(result.idDemande).catch(e => console.error('[Adhesion] activation:', e.message));
+    }
+    res.json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
     res.status(500).json({ message: err.message });
   }
 });

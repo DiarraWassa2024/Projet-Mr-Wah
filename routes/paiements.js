@@ -3,6 +3,7 @@ const auth               = require('../middleware/auth');
 const roles              = require('../middleware/roles');
 const PaiementRepository = require('../repositories/PaiementRepository');
 const PaymentService     = require('../services/payment/PaymentService');
+const DemandeService     = require('../services/DemandeService');
 const PAYMENT_PROVIDERS  = require('../config/paymentProviders');
 const { todayDate }      = require('../helpers/dateHelper');
 const { ok, created, badRequest, notFound, serverError } = require('../helpers/response');
@@ -33,6 +34,9 @@ router.get('/operateurs/:codePays', auth, async (req, res) => {
 router.post('/:id/payer', auth, async (req, res) => {
   try {
     const result = await PaymentService.payer(req.params.id, req.body);
+    if (result.success && result.idDemande) {
+      await DemandeService.completerApresPaiement(result.idDemande).catch(e => console.error('[Adhesion] activation:', e.message));
+    }
     ok(res, result);
   } catch (err) {
     if (err.status) return res.status(err.status).json({ message: err.message });

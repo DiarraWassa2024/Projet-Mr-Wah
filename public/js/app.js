@@ -12,6 +12,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Charge la locale stockée (ou FR par défaut)
   await i18n.load(localStorage.getItem('gpo_lang') || 'fr');
 
+  // Lien de paiement d'adhésion reçu par email (?paiement=ID) — page publique, prioritaire
+  const idPaiementLien = new URLSearchParams(location.search).get('paiement');
+  if (idPaiementLien) {
+    router.navigate('paiement-adhesion', { idPaiement: idPaiementLien });
+    return;
+  }
+
   // Détermine la route initiale
   if (auth.isLoggedIn()) {
     showShell();
