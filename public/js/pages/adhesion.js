@@ -293,7 +293,8 @@ router.register('adhesion', async (params = {}) => {
                   </div>
                   <div class="form-group">
                     <label>Date de naissance</label>
-                    <input type="date" name="dateNaiss">
+                    <input type="date" name="dateNaiss" max="2010-12-31">
+                    <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Doit être antérieure au 31/12/2010</p>
                   </div>
                 </div>
                 <div class="form-row">

@@ -2509,6 +2509,16 @@ body.landing-body {
   font-size: 32px; color: #d1d5db;
 }
 .adh-photo-info { flex: 1; }
+.adh-photo-right { flex-direction: row-reverse; }
+@media (max-width: 640px) { .adh-photo-right { flex-direction: column; } }
+
+.adh-recap-list { list-style: none; padding: 0; margin: 0; }
+.adh-recap-list li {
+  padding: 8px 0; border-bottom: 1px solid var(--border-color);
+  font-size: 13px; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 12px;
+}
+.adh-recap-list li strong { color: var(--text-primary); font-weight: 600; }
+.adh-recap-list li:last-child { border-bottom: none; }
 
 /* Paiements form */
 .adh-pai-form { border-top: 1px dashed #e5e7eb; padding-top: 12px; }

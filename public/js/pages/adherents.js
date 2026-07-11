@@ -22,7 +22,13 @@ router.register('adherents', async () => {
     2: [{ action: 'reactiver', label: 'Réactiver', cls: 'btn-wf-reactiver' }],
   };
 
-  const PAYS_CODES = ['BEN','BFA','CIV','MDG','MLI','NGA'];
+  const DATE_NAISS_MAX = '2010-12-31';
+
+  function paysOptsRiches(sel = '') {
+    return `<option value="">— Sélectionner —</option>` + Object.values(PAYS_CONFIG).map(p =>
+      `<option value="${p.code}"${sel === p.code ? ' selected' : ''}>${p.drapeau} ${p.nom}</option>`
+    ).join('');
+  }
 
   async function loadRefs() {
     [orgs, roles] = await Promise.all([api.get('/organisations'), api.get('/ref/roles')]);
@@ -109,6 +115,43 @@ router.register('adherents', async () => {
       };
       reader.readAsDataURL(file);
     });
+
+    // Pays — fiche visuelle (drapeau/armoiries/devise)
+    overlay.querySelector('#adhCodePaysSelect')?.addEventListener('change', function () {
+      onPaysChange(this.value, true, { cardId: 'adhPaysCard' });
+    });
+    if (adh.CodePays) onPaysChange(adh.CodePays, true, { cardId: 'adhPaysCard' });
+
+    // Wizard (mode création uniquement)
+    let wizardCtl = null;
+    if (!isEdit) {
+      wizardCtl = createWizardController(overlay, 3);
+      function renderRecap() {
+        const fd = new FormData(document.getElementById('adhForm'));
+        const val = k => fd.get(k) || '—';
+        const org = orgs.find(o => o.NumAgr === fd.get('NumAgr'));
+        const pays = getPays(fd.get('CodePays'));
+        const recap = overlay.querySelector('#adhConfirmRecap');
+        recap.innerHTML = `
+          <ul class="adh-recap-list">
+            <li><strong>Nom :</strong> ${val('NomAdh')} ${fd.get('PrenAdh') || ''}</li>
+            <li><strong>Sexe :</strong> ${val('Sexe')}</li>
+            <li><strong>Email :</strong> ${val('EmailAdh')}</li>
+            <li><strong>Téléphone :</strong> ${val('TelAdh')}</li>
+            <li><strong>Date de naissance :</strong> ${fd.get('DateNaissAdh') || '—'}</li>
+            <li><strong>Organisation :</strong> ${org ? org.LibOrg : '—'}</li>
+            <li><strong>Pays de résidence :</strong> ${pays ? pays.drapeau + ' ' + pays.nom : '—'}</li>
+            <li><strong>N° CNI :</strong> ${val('NumCNI')}</li>
+          </ul>
+          <p class="form-hint" style="margin-top:8px;color:#9ca3af">Vérifiez les informations avant de confirmer la création.</p>`;
+      }
+      overlay.querySelector('[data-wizard-next]').addEventListener('click', () => {
+        wizardCtl.next();
+        if (wizardCtl.current() === 3) renderRecap();
+      });
+      overlay.querySelector('[data-wizard-prev]').addEventListener('click', () => wizardCtl.prev());
+      wizardCtl.goTo(1);
+    }
 
     // Workflow buttons
     overlay.querySelectorAll('.btn-wf-adh').forEach(btn => {
@@ -236,7 +279,8 @@ router.register('adherents', async () => {
           </div>
           <div class="form-group">
             <label>Date de naissance</label>
-            <input type="date" name="DateNaissAdh" value="${adh.DateNaissAdh ? adh.DateNaissAdh.split('T')[0] : ''}">
+            <input type="date" name="DateNaissAdh" value="${adh.DateNaissAdh ? adh.DateNaissAdh.split('T')[0] : ''}" max="${DATE_NAISS_MAX}">
+            <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Doit être antérieure au 31/12/2010</p>
           </div>
         </div>
         <div class="form-row">
@@ -278,7 +322,7 @@ router.register('adherents', async () => {
 
     const paneIdentite = `
       <div class="adh-tab-pane" id="pane-identite">
-        <div class="adh-photo-section">
+        <div class="adh-photo-section adh-photo-right">
           <div class="adh-photo-wrap">
             ${adh.Photo
               ? `<img id="adhPhotoPreview" src="${adh.Photo}" class="adh-photo-preview">`
@@ -304,12 +348,10 @@ router.register('adherents', async () => {
         <div class="form-row">
           <div class="form-group">
             <label>Pays de résidence</label>
-            <select name="CodePays">
-              <option value="">—</option>
-              ${PAYS_CODES.map(c => `<option value="${c}"${adh.CodePays === c ? ' selected' : ''}>${c}</option>`).join('')}
-            </select>
+            <select name="CodePays" id="adhCodePaysSelect">${paysOptsRiches(adh.CodePays)}</select>
           </div>
         </div>
+        <div id="adhPaysCard" style="display:none;margin-top:10px"></div>
       </div>`;
 
     const panePaiements = isEdit ? `
@@ -375,11 +417,44 @@ router.register('adherents', async () => {
         </div>
       </div>` : '';
 
+    // ── Mode création : assistant (wizard) 3 étapes ──────────────
+    if (!isEdit) {
+      const paneConfirmation = `
+        <div class="adh-tab-pane" id="pane-confirmation">
+          <div id="adhConfirmRecap" class="adh-confirm-recap"></div>
+        </div>`;
+
+      return `
+      <div class="modal-overlay" id="adhModalOverlay" style="z-index:1100">
+        <div class="modal" style="max-width:680px;width:95%;max-height:92vh;display:flex;flex-direction:column">
+          <div class="modal-header">
+            <h3>➕ Nouvel adhérent</h3>
+            <button class="modal-close" id="adhCloseBtn">&times;</button>
+          </div>
+          <div class="wizard-progress-slot" style="padding:14px 20px 0">${renderWizardProgressBar(
+            [{ label: 'Infos' }, { label: 'Identité' }, { label: 'Confirmation' }], 1
+          )}</div>
+          <form id="adhForm" enctype="multipart/form-data" style="flex:1;overflow-y:auto;padding:16px 20px">
+            <div class="wizard-pane" data-step="1" data-label="Infos">${paneInfo}</div>
+            <div class="wizard-pane" data-step="2" data-label="Identité" style="display:none">${paneIdentite}</div>
+            <div class="wizard-pane" data-step="3" data-label="Confirmation" style="display:none">${paneConfirmation}</div>
+          </form>
+          <div class="form-actions" style="padding:14px 20px;border-top:1px solid #e5e7eb;flex-shrink:0">
+            <button type="button" class="btn btn-secondary" id="adhCloseBtn2">Annuler</button>
+            <button type="button" class="btn btn-secondary" data-wizard-prev style="display:none">← Précédent</button>
+            <button type="button" class="btn btn-primary" data-wizard-next>Suivant →</button>
+            <button type="submit" form="adhForm" class="btn btn-primary" data-wizard-confirm style="display:none">💾 Confirmer</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // ── Mode édition : onglets classiques (Infos/Identité/Paiements/Documents) ──
     return `
     <div class="modal-overlay" id="adhModalOverlay" style="z-index:1100">
       <div class="modal" style="max-width:680px;width:95%;max-height:92vh;display:flex;flex-direction:column">
         <div class="modal-header">
-          <h3>${isEdit ? '✏️ Modifier adhérent' : '➕ Nouvel adhérent'}${adh.NumAdherent ? ` <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px">${adh.NumAdherent}</code>` : ''}</h3>
+          <h3>✏️ Modifier adhérent${adh.NumAdherent ? ` <code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px">${adh.NumAdherent}</code>` : ''}</h3>
           <button class="modal-close" id="adhCloseBtn">&times;</button>
         </div>
         ${wfBlock}

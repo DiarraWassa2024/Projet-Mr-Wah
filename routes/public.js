@@ -143,6 +143,12 @@ router.post('/adhesion-multi', upload.fields([
     if (!dossier?.email) return res.status(400).json({ message: 'Email obligatoire' });
     if (!dossier?.nom)   return res.status(400).json({ message: 'Nom obligatoire' });
     if (!dossier?.sexe)  return res.status(400).json({ message: 'Le sexe est obligatoire' });
+    if (dossier?.dateNaiss) {
+      const dn = new Date(dossier.dateNaiss);
+      if (isNaN(dn.getTime()))            return res.status(400).json({ message: 'Date de naissance invalide' });
+      if (dn > new Date())                return res.status(400).json({ message: 'La date de naissance ne peut pas être dans le futur' });
+      if (dn > new Date('2010-12-31'))    return res.status(400).json({ message: 'La date de naissance doit être antérieure au 31/12/2010' });
+    }
     if (!Array.isArray(orgs) || orgs.length === 0)
       return res.status(400).json({ message: 'Sélectionnez au moins une organisation' });
     if (orgs.length > 10)

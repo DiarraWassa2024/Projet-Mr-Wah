@@ -70,9 +70,8 @@ function validate(body, isCreate) {
   if (body.DateNaissAdh) {
     const d = new Date(body.DateNaissAdh);
     if (isNaN(d.getTime())) return 'Date de naissance invalide';
-    if (d > new Date())     return 'La date de naissance ne peut pas être dans le futur';
-    const ageAns = (Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000);
-    if (ageAns < 16) return "L'adhérent doit avoir au moins 16 ans";
+    if (d > new Date())               return 'La date de naissance ne peut pas être dans le futur';
+    if (d > new Date('2010-12-31'))   return 'La date de naissance doit être antérieure au 31/12/2010';
   }
   return null;
 }
