@@ -4,11 +4,12 @@ const QueryBuilder   = require('../helpers/queryBuilder');
 class DemandeRepository extends BaseRepository {
   constructor() { super('SD_DemandeAdhesion', 'idDemande'); }
 
-  async findAll({ statut, typeOrg, codePays, ville, fonctionSouhaitee, search, dateFrom, dateTo } = {}) {
+  async findAll({ statut, typeOrg, codePays, ville, fonctionSouhaitee, search, dateFrom, dateTo, numAgr } = {}) {
     const searchVal = search ? `%${search}%` : null;
     const { clause, params } = QueryBuilder.where([
       ['d.statutAdhesion = ?',    statut],
       ['d.typeOrg = ?',           typeOrg],
+      ['d.numAgr = ?',            numAgr],
       ['d.codePays = ?',          codePays],
       ['d.ville = ?',             ville],
       ['d.fonctionSouhaitee = ?', fonctionSouhaitee],
@@ -48,15 +49,19 @@ class DemandeRepository extends BaseRepository {
     );
   }
 
-  async getStats() {
-    const [[total]]      = await this.db.execute('SELECT COUNT(*) AS n FROM SD_DemandeAdhesion');
-    const [[pending]]    = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE COALESCE(statutAdhesion,'En attente de validation')='En attente de validation'");
-    const [[actif]]      = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Actif'");
-    const [[suspendu]]   = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Suspendu'");
-    const [[radie]]      = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Radié'");
-    const [[exclu]]      = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Exclu'");
-    const [[dem]]        = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Démissionnaire'");
-    const [[refuse]]     = await this.db.execute("SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Refusé'");
+  async getStats(numAgr = null) {
+    // Pour un gestionnaire (scope = son organisation), ne compter que les demandes individuelles
+    // le concernant — pas la demande de création de sa propre organisation.
+    const scope = numAgr ? " AND numAgr = ? AND typeOrg = 'Individu'" : '';
+    const p = numAgr ? [numAgr] : [];
+    const [[total]]      = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE 1=1${scope}`, p);
+    const [[pending]]    = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE COALESCE(statutAdhesion,'En attente de validation')='En attente de validation'${scope}`, p);
+    const [[actif]]      = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Actif'${scope}`, p);
+    const [[suspendu]]   = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Suspendu'${scope}`, p);
+    const [[radie]]      = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Radié'${scope}`, p);
+    const [[exclu]]      = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Exclu'${scope}`, p);
+    const [[dem]]        = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Démissionnaire'${scope}`, p);
+    const [[refuse]]     = await this.db.execute(`SELECT COUNT(*) AS n FROM SD_DemandeAdhesion WHERE statutAdhesion='Refusé'${scope}`, p);
     return {
       total:         total.n,
       pending:       pending.n,
