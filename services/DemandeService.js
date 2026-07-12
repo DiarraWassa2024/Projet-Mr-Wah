@@ -159,28 +159,47 @@ const DemandeService = {
 
     await DemandeRepository.accept(id, adminUser, now, current, 'En attente de paiement');
 
+    // Générer et envoyer les identifiants de connexion immédiatement (le paiement se fait après connexion)
+    const userBase = idAdhCible
+      ? ((await AdherentRepository.findByIdFull(idAdhCible)).NumAdherent || `adh${idAdhCible}`).toLowerCase()
+      : numAgrCible.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const role = idAdhCible ? 'adherent' : 'gestionnaire';
+
+    let username = null, password = null;
+    const existingUser = await UserRepository.findByEmail(demande.emailOrg);
+    if (!existingUser && demande.emailOrg) {
+      username = await genererIdentifiantUnique(userBase);
+      password = genererMotDePasse();
+      const passwordHash = await AuthService.hashPassword(password);
+      await UserRepository.create({
+        username, email: demande.emailOrg, passwordHash, role, isActive: 1,
+        NumAgr: numAgrCible || null, idAdh: idAdhCible || null,
+      });
+    }
+
     const mailResult = await emailSvc.sendMail(
-      emailSvc.emailAccepteeDoitPayer(demande, { idPaiement, ...formules })
+      emailSvc.emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise: formules.CodeDevise })
     );
 
+    // Code de confirmation par SMS/WhatsApp — alternative pour payer sans se connecter
     const telephone = (demande.telOrg || demande.repTel || '').trim();
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const smsResult = await notificationSvc.sendNotification({
       to: telephone,
       channel: process.env.NOTIFICATION_CHANNEL || 'whatsapp',
-      message: `SoliDev ✅ Votre demande d'adhésion est acceptée !\n`
-        + `Code de confirmation : ${codeConfirmation}\n`
-        + `Rendez-vous sur ${appUrl}/verification pour régler votre cotisation (${Number(formules.Annuelle).toLocaleString('fr-FR')} ${formules.CodeDevise}/an) et recevoir vos identifiants.`,
+      message: `SoliDev ✅ Votre demande d'adhésion est acceptée ! Vos identifiants de connexion viennent de vous être envoyés par email.\n`
+        + `Vous pouvez aussi régler votre cotisation (${Number(formules.Annuelle).toLocaleString('fr-FR')} ${formules.CodeDevise}/an) sans vous connecter avec ce code : ${codeConfirmation}\n`
+        + `${appUrl}/verification`,
     });
 
     await AuditService.log('ACCEPTER_DEMANDE', null, {
       table: 'SD_DemandeAdhesion', id: demande.idDemande,
-      details: `Organisation: ${demande.nomOrg} | En attente de paiement | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
+      details: `Organisation: ${demande.nomOrg} | En attente de paiement | Identifiants: ${username ? 'créés' : 'compte existant'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
       user: adminUser,
     });
 
     return {
-      message: 'Demande acceptée — email et code de confirmation envoyés',
+      message: 'Demande acceptée — identifiants envoyés par email',
       emailSent: mailResult.ok,
       notificationSent: smsResult.ok,
       idPaiement,
@@ -188,8 +207,9 @@ const DemandeService = {
   },
 
   /**
-   * Appelée après confirmation d'un paiement d'adhésion (PaymentService.payer()) :
-   * active l'organisation/l'adhérent et génère des identifiants de connexion sécurisés.
+   * Appelée après confirmation d'un paiement d'adhésion (PaymentService.payer()), quel que soit le
+   * canal utilisé (code public, lien public ou paiement authentifié depuis l'espace personnel) :
+   * active simplement l'organisation/l'adhérent — les identifiants ont déjà été envoyés à l'acceptation.
    * Idempotent : ne fait rien si la demande n'est plus "En attente de paiement".
    */
   async completerApresPaiement(idDemande) {
@@ -204,58 +224,28 @@ const DemandeService = {
     );
     if (!pay) return null;
 
-    let userBase, email, target;
+    let nom;
     if (pay.idAdh) {
       await AdherentRepository.update(pay.idAdh, { IdStatut: 1 });
       const adh = await AdherentRepository.findByIdFull(pay.idAdh);
-      userBase = adh.NumAdherent ? adh.NumAdherent.toLowerCase() : `adh${adh.idAdh}`;
-      email = adh.EmailAdh;
-      target = { type: 'adherent', nom: `${adh.PrenAdh || ''} ${adh.NomAdh || ''}`.trim(), idAdh: adh.idAdh, NumAgr: adh.NumAgr };
+      nom = `${adh.PrenAdh || ''} ${adh.NomAdh || ''}`.trim();
     } else if (pay.NumAgr) {
       await OrganisationRepository.update(pay.NumAgr, { IdStatut: 1 });
       const org = await OrganisationRepository.findByIdFull(pay.NumAgr);
-      userBase = org.NumAgr.toLowerCase().replace(/[^a-z0-9]/g, '');
-      email = org.EmailOrg;
-      target = { type: 'organisation', nom: org.LibOrg, NumAgr: org.NumAgr };
+      nom = org.LibOrg;
     } else {
       return null;
     }
 
-    if (!email) return { activated: true, credentialsCreated: false, reason: 'Aucun email associé' };
-
-    const existingUser = await UserRepository.findByEmail(email);
-    if (existingUser) {
-      // Un compte existe déjà pour cet email — pas de nouveaux identifiants, juste l'activation.
-      await AuditService.log('ACTIVER_ADHESION', null, {
-        table: 'SD_DemandeAdhesion', id: idDemande,
-        details: `${target.nom} activé après paiement — compte existant réutilisé`, user: 'système',
-      });
-      return { activated: true, credentialsCreated: false };
-    }
-
-    const username = await genererIdentifiantUnique(userBase);
-    const password = genererMotDePasse();
-    const passwordHash = await AuthService.hashPassword(password);
-
-    const userResult = await UserRepository.create({
-      username, email, passwordHash,
-      role: target.type === 'organisation' ? 'gestionnaire' : 'adherent',
-      isActive: 1,
-      NumAgr: target.NumAgr || null,
-      idAdh: target.idAdh || null,
-    });
-
-    const mailResult = await emailSvc.sendMail(
-      emailSvc.emailIdentifiants({ nom: target.nom, email, username, password })
-    );
+    // Clôt le cycle de vie de la demande (empêche un second appel de réactiver/relancer l'activation)
+    await DemandeRepository.update(idDemande, { statutAdhesion: 'Actif' });
 
     await AuditService.log('ACTIVER_ADHESION', null, {
       table: 'SD_DemandeAdhesion', id: idDemande,
-      details: `${target.nom} activé après paiement — identifiants envoyés (${mailResult.ok ? 'ok' : 'échec email'})`,
-      user: 'système',
+      details: `${nom} activé après paiement de la cotisation`, user: 'système',
     });
 
-    return { activated: true, credentialsCreated: true, idUser: userResult.insertId, emailSent: mailResult.ok };
+    return { activated: true };
   },
 
   async refuse(id, adminUser, motif) {

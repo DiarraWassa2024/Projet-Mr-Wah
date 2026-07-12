@@ -25,7 +25,10 @@ const AuthService = {
 
   generateToken(user) {
     return jwt.sign(
-      { idUser: user.idUser, role: user.role, email: user.email, username: user.username },
+      {
+        idUser: user.idUser, role: user.role, email: user.email, username: user.username,
+        NumAgr: user.NumAgr || null, idAdh: user.idAdh || null,
+      },
       SECRET(),
       { expiresIn: EXPIRES() }
     );
@@ -36,7 +39,10 @@ const AuthService = {
   },
 
   publicUser(user) {
-    return { idUser: user.idUser, username: user.username, email: user.email, role: user.role };
+    return {
+      idUser: user.idUser, username: user.username, email: user.email, role: user.role,
+      NumAgr: user.NumAgr || null, idAdh: user.idAdh || null,
+    };
   },
 };
 

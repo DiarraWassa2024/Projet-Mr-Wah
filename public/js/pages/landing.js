@@ -738,7 +738,7 @@ function setupConnexionForm() {
       if (!res.ok) throw new Error(data.message || 'Identifiants incorrects');
       localStorage.setItem('gpo_token', data.token);
       if (data.user) localStorage.setItem('gpo_user', JSON.stringify(data.user));
-      landingNav('dashboard');
+      await enterAppAfterLogin();
     } catch(err) {
       showAlert('cnxAlert', err.message, 'error');
       btn.disabled = false;

@@ -11,7 +11,7 @@ class UserRepository extends BaseRepository {
 
   async findById(id) {
     return this.queryOne(
-      'SELECT idUser, username, email, role, isActive, createdAt FROM GPOTB_Users WHERE idUser = ?', [id]
+      'SELECT idUser, username, email, role, isActive, createdAt, NumAgr, idAdh FROM GPOTB_Users WHERE idUser = ?', [id]
     );
   }
 

@@ -22,12 +22,58 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Prépare le shell (si connecté) puis résout la route depuis l'URL courante
   // (gère les liens directs / le rafraîchissement de page sur n'importe quelle route)
   if (auth.isLoggedIn()) {
+    const pending = await getPendingPayment();
+    if (pending) { renderPaymentGate(pending); return; }
     showShell();
     // Un utilisateur connecté qui arrive sur la racine "/" voit le tableau de bord, pas la vitrine
     if (location.pathname === '/') { router.navigate('dashboard'); return; }
   }
   router.resolveInitialRoute();
 });
+
+/** Récupère le paiement de cotisation en attente de l'utilisateur connecté (ou null). */
+async function getPendingPayment() {
+  try { return await api.get('/paiements/mon-paiement-attente'); }
+  catch (_) { return null; }
+}
+
+/** Après connexion : soit le paiement est en attente (gate), soit accès direct au tableau de bord. */
+async function enterAppAfterLogin() {
+  const pending = await getPendingPayment();
+  if (pending) { renderPaymentGate(pending); return; }
+  showShell();
+  router.navigate('dashboard');
+}
+
+/** Écran plein — règlement de la cotisation avant accès à l'espace personnel. */
+function renderPaymentGate(pay) {
+  document.body.className = '';
+  document.body.innerHTML = `
+    <div class="pub-form-wrap">
+      <button class="pub-form-back" onclick="doLogout()">🚪 Déconnexion</button>
+      <div class="pub-form-card" style="max-width:460px">
+        <div class="pub-form-logo">
+          <div class="pub-form-brand"><div class="logo-sm">SD</div><span>SoliDev</span></div>
+        </div>
+        <h2 style="text-align:center;margin-bottom:4px">💳 Réglez votre cotisation</h2>
+        <p style="text-align:center;color:#64748b;font-size:13px;margin-bottom:20px">
+          Bienvenue ! Il ne reste qu'une étape avant d'accéder à votre espace personnel.
+        </p>
+        <div id="gatePaymentWidget"></div>
+      </div>
+    </div>`;
+
+  renderPaymentWidget(document.getElementById('gatePaymentWidget'), {
+    codePays: pay.CodePays,
+    montant: pay.MontantPaiement,
+    idPaiement: pay.IdPaiement,
+    authenticated: true,
+    onSuccess: () => {
+      showToast('Paiement confirmé ! Bienvenue.', 'success');
+      setTimeout(() => { showShell(); router.navigate('dashboard'); }, 1200);
+    },
+  });
+}
 
 function showShell() {
   const user = auth.getUser();

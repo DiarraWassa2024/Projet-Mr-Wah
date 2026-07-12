@@ -76,8 +76,7 @@ router.register('login', () => {
           render(); return;
         }
         await auth.login(document.getElementById('email').value, document.getElementById('password').value);
-        showShell();
-        router.navigate('dashboard');
+        await enterAppAfterLogin();
       } catch (err) {
         msg.style.display = 'block';
         msg.className = 'msg error';

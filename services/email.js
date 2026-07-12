@@ -46,7 +46,28 @@ function wrapHtml(body) {
 </head><body><div class="card">${body}</div></body></html>`;
 }
 
-function emailAcceptee(demande) {
+/**
+ * Email envoyé immédiatement après acceptation : annonce + identifiants de connexion.
+ * Le paiement de la cotisation se fait après connexion, depuis l'espace personnel.
+ */
+function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise }) {
+  const loginUrl = process.env.APP_URL || 'http://localhost:3000';
+  const fmt = n => Number(n || 0).toLocaleString('fr-FR');
+  const aDesIdentifiants = !!(username && password);
+
+  const credBlock = aDesIdentifiants ? `
+      <p>Voici vos identifiants de connexion :</p>
+      <div class="highlight">
+        Identifiant : <strong style="font-family:monospace">${username}</strong><br>
+        Mot de passe : <strong style="font-family:monospace">${password}</strong>
+      </div>
+      <p style="color:#7c2d12;background:#fff7ed;border-radius:8px;padding:10px 14px;font-size:13px">
+        ⚠️ Ce mot de passe ne sera communiqué qu'une seule fois. Conservez-le en lieu sûr et changez-le dès votre première connexion.
+      </p>` : `
+      <div class="highlight">
+        Un compte SoliDev existe déjà pour cet email — connectez-vous avec vos identifiants habituels.
+      </div>`;
+
   const html = wrapHtml(`
     <div class="hdr">
       <h1>🎉 Demande acceptée</h1>
@@ -54,32 +75,32 @@ function emailAcceptee(demande) {
     </div>
     <div class="body">
       <p>Bonjour <strong>${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg}</strong>,</p>
-      <p>Nous avons le plaisir de vous informer que votre demande d'adhésion pour l'organisation
-         <strong>${demande.nomOrg}</strong> a été <strong style="color:#059669">acceptée</strong>.</p>
-      <div class="highlight">
-        ✅ Votre organisation est désormais enregistrée sur SoliDev.<br>
-        Vous pouvez vous connecter à votre espace de gestion.
+      <p>Nous avons le plaisir de vous informer que votre demande d'adhésion pour
+         <strong>${demande.nomOrg}</strong> a été <strong style="color:#059669">acceptée</strong> !</p>
+      ${credBlock}
+      <div class="highlight warn">
+        ⏳ Une fois connecté(e), il vous sera demandé de régler votre cotisation annuelle
+        (<strong>${fmt(montantAnnuel)} ${codeDevise}</strong>) pour accéder pleinement à votre espace.
       </div>
-      <p>Voici un récapitulatif de votre dossier :</p>
-      <ul style="color:#374151;font-size:14px;line-height:2">
-        <li>Organisation : <strong>${demande.nomOrg}</strong></li>
-        <li>Type : <strong>${demande.typeOrg}</strong></li>
-        <li>Pays : <strong>${demande.libPays || demande.codePays || '—'}</strong></li>
-        <li>Date de traitement : <strong>${new Date().toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'})}</strong></li>
-      </ul>
-      <a href="${process.env.APP_URL || 'http://localhost:3000'}" class="btn">Se connecter à SoliDev →</a>
+      <p style="text-align:center">
+        <a href="${loginUrl}" class="btn">Se connecter à SoliDev →</a>
+      </p>
     </div>
     <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
   `);
 
   const text = `Bonjour ${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg},\n\n`
-    + `Votre demande d'adhésion pour l'organisation "${demande.nomOrg}" a été ACCEPTÉE.\n`
-    + `Votre organisation est désormais enregistrée sur SoliDev.\n\nConnectez-vous sur : http://localhost:3000`;
+    + `Votre demande d'adhésion pour "${demande.nomOrg}" a été ACCEPTÉE.\n\n`
+    + (aDesIdentifiants
+        ? `Identifiant : ${username}\nMot de passe : ${password}\n\n`
+        : `Un compte existe déjà pour cet email — connectez-vous avec vos identifiants habituels.\n\n`)
+    + `Une fois connecté(e), réglez votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) pour activer pleinement votre compte.\n\n`
+    + `Connexion : ${loginUrl}`;
 
   return {
     to: demande.emailOrg,
     from: FROM,
-    subject: `✅ Demande acceptée – ${demande.nomOrg} | SoliDev`,
+    subject: `🎉 Bienvenue sur SoliDev — vos identifiants | ${demande.nomOrg}`,
     html,
     text,
   };
@@ -118,88 +139,6 @@ function emailRefusee(demande, motif) {
   };
 }
 
-function emailAccepteeDoitPayer(demande, { idPaiement, Mensuelle, Annuelle, CodeDevise }) {
-  const paymentUrl = `${process.env.APP_URL || 'http://localhost:3000'}/?paiement=${idPaiement}`;
-  const fmt = n => Number(n || 0).toLocaleString('fr-FR');
-
-  const html = wrapHtml(`
-    <div class="hdr">
-      <h1>🎉 Demande acceptée</h1>
-      <p>SoliDev – Plateforme Panafricaine des Associations</p>
-    </div>
-    <div class="body">
-      <p>Bonjour <strong>${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg}</strong>,</p>
-      <p>Nous avons le plaisir de vous informer que votre demande d'adhésion pour
-         <strong>${demande.nomOrg}</strong> a été <strong style="color:#059669">acceptée</strong>.</p>
-      <div class="highlight warn">
-        ⏳ Il ne reste qu'une étape : le règlement de votre cotisation pour activer définitivement votre accès.
-      </div>
-      <p>Choisissez la formule qui vous convient :</p>
-      <ul style="color:#374151;font-size:14px;line-height:2">
-        <li>Abonnement <strong>Mensuel</strong> : <strong>${fmt(Mensuelle)} ${CodeDevise}</strong></li>
-        <li>Abonnement <strong>Annuel</strong> : <strong>${fmt(Annuelle)} ${CodeDevise}</strong> (formule proposée par défaut)</li>
-      </ul>
-      <p style="text-align:center">
-        <a href="${paymentUrl}" class="btn">Procéder au paiement →</a>
-      </p>
-      <p style="color:#6b7280;font-size:13px">
-        Dès la confirmation de votre paiement, vous recevrez automatiquement vos identifiants de connexion.
-      </p>
-    </div>
-    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
-  `);
-
-  const text = `Bonjour ${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg},\n\n`
-    + `Votre demande d'adhésion pour "${demande.nomOrg}" a été ACCEPTÉE.\n`
-    + `Il vous reste à régler votre cotisation :\n`
-    + `- Mensuel : ${fmt(Mensuelle)} ${CodeDevise}\n- Annuel : ${fmt(Annuelle)} ${CodeDevise}\n\n`
-    + `Payer ici : ${paymentUrl}`;
-
-  return {
-    to: demande.emailOrg,
-    from: FROM,
-    subject: `✅ Demande acceptée — Cotisation à régler | ${demande.nomOrg}`,
-    html,
-    text,
-  };
-}
-
-function emailIdentifiants({ nom, email, username, password }) {
-  const loginUrl = process.env.APP_URL || 'http://localhost:3000';
-
-  const html = wrapHtml(`
-    <div class="hdr" style="background:linear-gradient(135deg,#059669,#10b981)">
-      <h1>🔑 Vos identifiants SoliDev</h1>
-      <p>SoliDev – Plateforme Panafricaine des Associations</p>
-    </div>
-    <div class="body">
-      <p>Bonjour <strong>${nom || ''}</strong>,</p>
-      <p>Votre paiement a bien été confirmé — votre compte est maintenant <strong style="color:#059669">actif</strong>.
-         Voici vos identifiants de connexion :</p>
-      <div class="highlight">
-        Identifiant : <strong style="font-family:monospace">${username}</strong><br>
-        Mot de passe : <strong style="font-family:monospace">${password}</strong>
-      </div>
-      <p style="color:#7c2d12;background:#fff7ed;border-radius:8px;padding:10px 14px;font-size:13px">
-        ⚠️ Ce mot de passe ne sera communiqué qu'une seule fois. Conservez-le en lieu sûr et changez-le dès votre première connexion.
-      </p>
-      <a href="${loginUrl}" class="btn">Se connecter à SoliDev →</a>
-    </div>
-    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
-  `);
-
-  const text = `Bonjour ${nom || ''},\n\nVotre paiement est confirmé, votre compte est actif.\n`
-    + `Identifiant : ${username}\nMot de passe : ${password}\n\nConnexion : ${loginUrl}`;
-
-  return {
-    to: email,
-    from: FROM,
-    subject: `🔑 Vos identifiants de connexion — SoliDev`,
-    html,
-    text,
-  };
-}
-
 function emailNouvelleDemande(demande) {
   const text = `Nouvelle demande d'adhésion reçue.\n\n`
     + `Organisation : ${demande.nomOrg}\nType : ${demande.typeOrg}\nEmail : ${demande.emailOrg}\n`
@@ -224,4 +163,4 @@ async function sendMail(opts) {
   }
 }
 
-module.exports = { sendMail, emailAcceptee, emailRefusee, emailNouvelleDemande, emailAccepteeDoitPayer, emailIdentifiants };
+module.exports = { sendMail, emailAccepteeAvecIdentifiants, emailRefusee, emailNouvelleDemande };

@@ -29,10 +29,40 @@ router.get('/operateurs/:codePays', auth, async (req, res) => {
   ok(res, cfg);
 });
 
+/* ── GET /api/paiements/mon-paiement-attente ───────────────── */
+/* Paiement d'adhésion en attente pour l'utilisateur connecté (gate post-connexion). */
+router.get('/mon-paiement-attente', auth, async (req, res) => {
+  try {
+    const { NumAgr, idAdh } = req.user;
+    if (!NumAgr && !idAdh) return ok(res, null);
+
+    const rows = await PaiementRepository.query(`
+      SELECT pa.*, d.LibDevise, d.Symbole AS SymDevise
+      FROM GPOTB08_Paiement pa
+      LEFT JOIN GPOTB27_Devise d ON pa.CodeDevise = d.CodeDevise
+      WHERE pa.TypePaiement = 'Adhésion' AND pa.Statut = 'En attente'
+        AND ((pa.idAdh = ? AND ? IS NOT NULL) OR (pa.NumAgr = ? AND ? IS NOT NULL))
+      ORDER BY pa.IdPaiement DESC LIMIT 1
+    `, [idAdh || null, idAdh || null, NumAgr || null, NumAgr || null]);
+
+    ok(res, rows[0] || null);
+  } catch (err) { serverError(res, err); }
+});
+
 /* ── POST /api/paiements/:id/payer ─────────────────────────── */
 /* Déclenche le paiement (simulé) via l'opérateur choisi. */
 router.post('/:id/payer', auth, async (req, res) => {
   try {
+    // Un utilisateur non-admin ne peut régler que son propre paiement en attente
+    if (req.user.role !== 'admin') {
+      const pay = await PaiementRepository.findById(req.params.id);
+      const isOwner = pay && (
+        (req.user.idAdh && pay.idAdh === req.user.idAdh) ||
+        (req.user.NumAgr && pay.NumAgr === req.user.NumAgr)
+      );
+      if (!isOwner) return res.status(403).json({ message: 'Ce paiement ne vous appartient pas' });
+    }
+
     const result = await PaymentService.payer(req.params.id, req.body);
     if (result.success && result.idDemande) {
       await DemandeService.completerApresPaiement(result.idDemande).catch(e => console.error('[Adhesion] activation:', e.message));
