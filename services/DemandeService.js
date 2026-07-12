@@ -135,29 +135,46 @@ const DemandeService = {
       idAdhCible = result.insertId;
     }
 
-    // Créer le paiement de cotisation en attente (individus et organisations)
-    const codeDevise = demande.codeDevise || deviseDuPays(demande.codePays);
-    const formules    = await getFormulesCotisation(numAgrCible, codeDevise);
-    const montantAnnuel = formules.Annuelle;
+    // Une organisation peut avoir déjà réglé sa cotisation à l'inscription (routes/public.js /adhesion) —
+    // dans ce cas, ne pas recréer un paiement ni redemander à payer : activer directement.
+    const [[paiementExistant]] = await db.execute(
+      `SELECT * FROM GPOTB08_Paiement WHERE idDemande = ? AND TypePaiement = 'Adhésion' ORDER BY IdPaiement DESC LIMIT 1`,
+      [demande.idDemande]
+    );
+    const dejaPayee = !!(paiementExistant && paiementExistant.Statut === 'Payé');
 
-    const codeConfirmation = await genererCodeConfirmationUnique();
+    let idPaiement, montantAnnuel, codeDeviseFinal, codeConfirmation = null;
 
-    const payResult = await PaiementRepository.create({
-      DatePaiement:      todayDate(),
-      MontantPaiement:   montantAnnuel,
-      Statut:            'En attente',
-      TypePaiement:      'Adhésion',
-      idAdh:             idAdhCible,
-      NumAgr:            numAgrCible,
-      CodeDevise:        codeDevise,
-      CodePays:          demande.codePays || null,
-      idDemande:         demande.idDemande,
-      ObjetPaiement:     'Cotisation annuelle — adhésion SoliDev',
-      CodeConfirmation:  codeConfirmation,
-    });
-    const idPaiement = payResult.insertId;
+    if (dejaPayee) {
+      idPaiement      = paiementExistant.IdPaiement;
+      montantAnnuel   = paiementExistant.MontantPaiement;
+      codeDeviseFinal = paiementExistant.CodeDevise;
+      if (idAdhCible)       await AdherentRepository.update(idAdhCible, { IdStatut: 1 });
+      else if (numAgrCible) await OrganisationRepository.update(numAgrCible, { IdStatut: 1 });
+    } else {
+      const codeDevise = demande.codeDevise || deviseDuPays(demande.codePays);
+      const formules    = await getFormulesCotisation(numAgrCible, codeDevise);
+      montantAnnuel   = formules.Annuelle;
+      codeDeviseFinal = formules.CodeDevise;
+      codeConfirmation = await genererCodeConfirmationUnique();
 
-    await DemandeRepository.accept(id, adminUser, now, current, 'En attente de paiement');
+      const payResult = await PaiementRepository.create({
+        DatePaiement:      todayDate(),
+        MontantPaiement:   montantAnnuel,
+        Statut:            'En attente',
+        TypePaiement:      'Adhésion',
+        idAdh:             idAdhCible,
+        NumAgr:            numAgrCible,
+        CodeDevise:        codeDeviseFinal,
+        CodePays:          demande.codePays || null,
+        idDemande:         demande.idDemande,
+        ObjetPaiement:     'Cotisation annuelle — adhésion SoliDev',
+        CodeConfirmation:  codeConfirmation,
+      });
+      idPaiement = payResult.insertId;
+    }
+
+    await DemandeRepository.accept(id, adminUser, now, current, dejaPayee ? 'Actif' : 'En attente de paiement');
 
     // Générer et envoyer les identifiants de connexion immédiatement (le paiement se fait après connexion)
     const userBase = idAdhCible
@@ -178,28 +195,30 @@ const DemandeService = {
     }
 
     const mailResult = await emailSvc.sendMail(
-      emailSvc.emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise: formules.CodeDevise })
+      emailSvc.emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise: codeDeviseFinal, dejaPayee })
     );
 
-    // Code de confirmation par SMS/WhatsApp — alternative pour payer sans se connecter
+    // Code de confirmation par SMS/WhatsApp — alternative pour payer sans se connecter (si pas déjà payé)
     const telephone = (demande.telOrg || demande.repTel || '').trim();
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const smsResult = await notificationSvc.sendNotification({
       to: telephone,
       channel: process.env.NOTIFICATION_CHANNEL || 'whatsapp',
-      message: `SoliDev ✅ Votre demande d'adhésion est acceptée ! Vos identifiants de connexion viennent de vous être envoyés par email.\n`
-        + `Vous pouvez aussi régler votre cotisation (${Number(formules.Annuelle).toLocaleString('fr-FR')} ${formules.CodeDevise}/an) sans vous connecter avec ce code : ${codeConfirmation}\n`
-        + `${appUrl}/verification`,
+      message: dejaPayee
+        ? `SoliDev ✅ Votre demande d'adhésion est acceptée et votre compte est actif ! Vos identifiants de connexion viennent de vous être envoyés par email.`
+        : `SoliDev ✅ Votre demande d'adhésion est acceptée ! Vos identifiants de connexion viennent de vous être envoyés par email.\n`
+          + `Vous pouvez aussi régler votre cotisation (${Number(montantAnnuel).toLocaleString('fr-FR')} ${codeDeviseFinal}/an) sans vous connecter avec ce code : ${codeConfirmation}\n`
+          + `${appUrl}/verification`,
     });
 
     await AuditService.log('ACCEPTER_DEMANDE', null, {
       table: 'SD_DemandeAdhesion', id: demande.idDemande,
-      details: `Organisation: ${demande.nomOrg} | En attente de paiement | Identifiants: ${username ? 'créés' : 'compte existant'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
+      details: `Organisation: ${demande.nomOrg} | ${dejaPayee ? 'Cotisation déjà réglée — activée' : 'En attente de paiement'} | Identifiants: ${username ? 'créés' : 'compte existant'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
       user: adminUser,
     });
 
     return {
-      message: 'Demande acceptée — identifiants envoyés par email',
+      message: dejaPayee ? 'Demande acceptée — compte activé (cotisation déjà réglée)' : 'Demande acceptée — identifiants envoyés par email',
       emailSent: mailResult.ok,
       notificationSent: smsResult.ok,
       idPaiement,
@@ -297,3 +316,6 @@ const DemandeService = {
 };
 
 module.exports = DemandeService;
+module.exports.getFormulesCotisation = getFormulesCotisation;
+module.exports.deviseDuPays = deviseDuPays;
+module.exports.genererCodeConfirmationUnique = genererCodeConfirmationUnique;

@@ -50,7 +50,7 @@ function wrapHtml(body) {
  * Email envoyé immédiatement après acceptation : annonce + identifiants de connexion.
  * Le paiement de la cotisation se fait après connexion, depuis l'espace personnel.
  */
-function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise }) {
+function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise, dejaPayee = false }) {
   const loginUrl = process.env.APP_URL || 'http://localhost:3000';
   const fmt = n => Number(n || 0).toLocaleString('fr-FR');
   const aDesIdentifiants = !!(username && password);
@@ -78,10 +78,15 @@ function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnn
       <p>Nous avons le plaisir de vous informer que votre demande d'adhésion pour
          <strong>${demande.nomOrg}</strong> a été <strong style="color:#059669">acceptée</strong> !</p>
       ${credBlock}
+      ${dejaPayee ? `
+      <div class="highlight">
+        ✅ Votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) a déjà été réglée à l'inscription.
+        Votre compte est <strong>immédiatement actif</strong>, vous pouvez vous connecter dès maintenant.
+      </div>` : `
       <div class="highlight warn">
         ⏳ Une fois connecté(e), il vous sera demandé de régler votre cotisation annuelle
         (<strong>${fmt(montantAnnuel)} ${codeDevise}</strong>) pour accéder pleinement à votre espace.
-      </div>
+      </div>`}
       <p style="text-align:center">
         <a href="${loginUrl}" class="btn">Se connecter à SoliDev →</a>
       </p>
@@ -94,7 +99,9 @@ function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnn
     + (aDesIdentifiants
         ? `Identifiant : ${username}\nMot de passe : ${password}\n\n`
         : `Un compte existe déjà pour cet email — connectez-vous avec vos identifiants habituels.\n\n`)
-    + `Une fois connecté(e), réglez votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) pour activer pleinement votre compte.\n\n`
+    + (dejaPayee
+        ? `Votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) a déjà été réglée à l'inscription — votre compte est immédiatement actif.\n\n`
+        : `Une fois connecté(e), réglez votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) pour activer pleinement votre compte.\n\n`)
     + `Connexion : ${loginUrl}`;
 
   return {

@@ -5,7 +5,12 @@ const path               = require('path');
 const fs                 = require('fs');
 const PaymentService     = require('../services/payment/PaymentService');
 const PaiementRepository = require('../repositories/PaiementRepository');
+const OrganisationRepository = require('../repositories/OrganisationRepository');
 const DemandeService     = require('../services/DemandeService');
+const { getFormulesCotisation, deviseDuPays, genererCodeConfirmationUnique } = DemandeService;
+
+const TYPE_ORG_ID   = { 'Association': 1, 'ONG': 2, 'Mutuelle': 6 };
+const TYPE_ORG_CODE = { 'Association': 'ASS', 'ONG': 'ONG', 'Mutuelle': 'MUT' };
 
 // ── File upload config ────────────────────────────────────────
 const uploadDir = path.join(__dirname, '../public/uploads');
@@ -28,14 +33,16 @@ const upload = multer({
   },
 });
 
-// POST /api/public/adhesion  (multipart/form-data)
+// POST /api/public/adhesion  (multipart/form-data) — inscription d'une organisation
+// L'organisation est créée immédiatement (statut "en attente") et paie sa cotisation
+// tout de suite ; l'admin (ou un gestionnaire existant) valide ensuite le dossier.
 router.post('/adhesion', upload.single('docAgrement'), async (req, res) => {
   try {
     const b = req.body;
     const {
-      type, nom, email, tel, pays, libPays, siege, dateCrea, description, numAgr,
+      type, nom, email, tel, pays, libPays, siege, dateCrea, description, numAgr: numAgrSaisi,
       repNom, repPrenom, repFonction, repAdresse, repTel, repEmail,
-      repSexe, prenom, ministere,
+      repSexe, prenom, ministere, siteWeb,
     } = b;
 
     const nomOrg = nom || `${b.nomPhys||''} ${prenom||''}`.trim();
@@ -43,9 +50,35 @@ router.post('/adhesion', upload.single('docAgrement'), async (req, res) => {
     if (!type)     return res.status(400).json({ message: "Type d'adhésion obligatoire" });
     if (!email)    return res.status(400).json({ message: 'Email obligatoire' });
     if (!repSexe)  return res.status(400).json({ message: 'Le sexe du déclarant est obligatoire' });
+    if (!pays)     return res.status(400).json({ message: 'Le pays est obligatoire' });
 
     const docAgrement = req.file ? `/uploads/${req.file.filename}` : null;
     const now = new Date().toISOString().replace('T',' ').split('.')[0];
+
+    // Identifiant plateforme généré automatiquement (le champ "numéro d'agrément" saisi par
+    // l'organisation, s'il existe, est conservé dans la description — ce n'est pas notre clé interne).
+    const typeCode = TYPE_ORG_CODE[type] || 'ASS';
+    const numAgr = await OrganisationRepository.generateNumAgr(pays, typeCode);
+    const descriptionComplete = numAgrSaisi
+      ? `${description || ''}${description ? '\n' : ''}Numéro d'agrément déclaré : ${numAgrSaisi}`.trim()
+      : (description || null);
+
+    // Organisation créée tout de suite (en attente de validation admin) pour pouvoir régler la cotisation
+    await OrganisationRepository.create({
+      NumAgr: numAgr,
+      LibOrg: nomOrg,
+      CodePays: pays,
+      IdTypOrg: TYPE_ORG_ID[type] || null,
+      DateCreOrg: dateCrea || null,
+      SiegeOrg: siege || null,
+      EmailOrg: email,
+      TelOrg: tel || repTel || null,
+      SiteWeb: siteWeb || null,
+      Description: descriptionComplete,
+      NomRepresentant: [repPrenom, repNom].filter(Boolean).join(' ') || null,
+      FonctionRepresentant: repFonction || null,
+      IdStatut: 4,
+    });
 
     const [result] = await db.execute(
       `INSERT INTO SD_DemandeAdhesion
@@ -53,15 +86,39 @@ router.post('/adhesion', upload.single('docAgrement'), async (req, res) => {
           siegeOrg, dateCrea, description, ministere, docAgrement,
           repNom, repPrenom, repFonction, repAdresse, repTel, repEmail, repSexe, dateDemande)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [type, nomOrg, numAgr||null, email, tel||null, pays||null, libPays||null,
-       siege||null, dateCrea||null, description||null, ministere||null, docAgrement,
+      [type, nomOrg, numAgr, email, tel||null, pays, libPays||null,
+       siege||null, dateCrea||null, descriptionComplete, ministere||null, docAgrement,
        repNom||null, repPrenom||null, repFonction||null,
        repAdresse||null, repTel||null, repEmail||null, repSexe||null, now]
     );
+    const idDemande = result.insertId;
+
+    // Cotisation à régler immédiatement (avant même la revue de l'admin)
+    const codeDevise = deviseDuPays(pays);
+    const formules    = await getFormulesCotisation(numAgr, codeDevise);
+    const codeConfirmation = await genererCodeConfirmationUnique();
+
+    const payResult = await PaiementRepository.create({
+      DatePaiement: now.split(' ')[0],
+      MontantPaiement: formules.Annuelle,
+      Statut: 'En attente',
+      TypePaiement: 'Adhésion',
+      NumAgr: numAgr,
+      CodeDevise: formules.CodeDevise,
+      CodePays: pays,
+      idDemande,
+      ObjetPaiement: "Cotisation d'inscription — SoliDev",
+      CodeConfirmation: codeConfirmation,
+    });
 
     res.status(201).json({
-      message: `Votre demande d'adhésion (${type}) a bien été reçue. Nous vous contacterons prochainement.`,
-      id: result.insertId,
+      message: `Votre demande d'adhésion (${type}) a bien été reçue. Réglez votre cotisation ci-dessous pour finaliser votre inscription.`,
+      id: idDemande,
+      numAgr,
+      idPaiement: payResult.insertId,
+      montant: formules.Annuelle,
+      codeDevise: formules.CodeDevise,
+      codePays: pays,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

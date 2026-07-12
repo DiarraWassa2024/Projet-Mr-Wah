@@ -583,21 +583,32 @@ router.register('adhesion', async (params = {}) => {
         const res  = await fetch('/api/public/adhesion', { method: 'POST', body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message);
+
+        const emailOrg = fd.get('email');
         document.querySelector('.adh-card').innerHTML = `
           <div class="pub-success">
             <div class="success-icon">✅</div>
-            <h3>Demande envoyée avec succès !</h3>
+            <h3>Demande envoyée — dernière étape : le paiement</h3>
             <p>${data.message}<br>
-               Référence : <strong>#${data.id}</strong><br><br>
-               Notre équipe examinera votre demande et vous contactera dans les <strong>48h</strong>.</p>
-            <button class="btn btn-primary"
-                    onclick="landingNav('adhesion',{mode:'organisation',sousType:'${sousType}'})">
-              Nouvelle demande
-            </button>
-            <button class="btn btn-secondary" onclick="landingNav('landing')" style="margin-left:10px">
-              ← Accueil
-            </button>
+               Référence : <strong>#${data.id}</strong></p>
+            <div id="orgPaymentWidget" style="text-align:left;margin-top:20px"></div>
           </div>`;
+
+        renderPaymentWidget(document.getElementById('orgPaymentWidget'), {
+          codePays: data.codePays,
+          montant: data.montant,
+          idPaiement: data.idPaiement,
+          authenticated: false,
+          email: emailOrg,
+          onSuccess: () => {
+            document.querySelector('.pub-success').insertAdjacentHTML('beforeend', `
+              <p style="margin-top:16px;color:#059669">
+                Votre cotisation est réglée. Votre dossier part maintenant en revue chez notre équipe —
+                vous recevrez vos identifiants de connexion par email dès la validation.
+              </p>
+              <button class="btn btn-secondary" onclick="landingNav('landing')" style="margin-top:10px">← Accueil</button>`);
+          },
+        });
       } catch (err) {
         msg.style.display     = 'block';
         msg.className         = 'msg error';
