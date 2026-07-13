@@ -71,6 +71,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 900; font-size: 14px; letter-spacing: -.5px;
   box-shadow: 0 4px 14px rgba(99,102,241,.45);
+  object-fit: cover;
 }
 .sb-name    { display: block; font-size: 15px; font-weight: 700; color: #f1f5f9; line-height: 1.2; }
 .sb-tagline { display: block; font-size: 10px; color: #475569; margin-top: 2px; letter-spacing: .3px; text-transform: uppercase; }
@@ -143,6 +144,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 #main {
   margin-left: var(--sidebar-w);
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -150,20 +152,21 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   height: var(--header-h);
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
-  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center;
   padding: 0 24px;
   position: sticky; top: 0; z-index: 50;
 }
-#topbar .tb-left { display: flex; align-items: center; gap: 12px; justify-self: start; }
+#topbar .tb-left { grid-column: 1; display: flex; align-items: center; gap: 12px; justify-self: start; min-width: 0; }
 #topbar h1 { font-size: 18px; font-weight: 600; }
 #topbar .tb-center {
+  grid-column: 2;
   justify-self: center; display: flex; align-items: baseline; gap: 8px;
   font-size: 13px; color: var(--text-secondary); white-space: nowrap;
 }
 #topbar .tb-username { font-weight: 700; color: var(--text-primary); text-transform: capitalize; }
 #topbar .tb-date-sep { color: var(--text-muted); }
 #topbar .tb-date { text-transform: capitalize; }
-#topbar .tb-right { display: flex; align-items: center; gap: 12px; justify-self: end; }
+#topbar .tb-right { grid-column: 3; display: flex; align-items: center; gap: 12px; justify-self: end; min-width: 0; }
 @media (max-width: 768px) {
   #topbar .tb-center { display: none; }
 }
@@ -271,7 +274,9 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   font-size: 20px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 12px;
+  overflow: hidden;
 }
+.logo-circle img { width: 100%; height: 100%; object-fit: cover; }
 .auth-logo h1 { font-size: 18px; color: #1e293b; margin-bottom: 6px; }
 .auth-logo p  { font-size: 12px; color: #6b7280; }
 .auth-tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px; }
@@ -854,7 +859,7 @@ body.landing-body {
   font-size: 13px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden; transition: background .2s;
-  flex-shrink: 0;
+  flex-shrink: 0; object-fit: cover;
 }
 .pub-form-logo .logo-sm.adh-logo-country { background: #fff; border: 1px solid #e5e7eb; }
 .adh-logo-armoirie { width: 100%; height: 100%; object-fit: contain; padding: 5px; }
@@ -3810,6 +3815,7 @@ body.landing-body {
   width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.2);
   display: flex; align-items: center; justify-content: center;
   font-size: 8px; font-weight: 800; color: #fff; flex-shrink: 0;
+  object-fit: cover; overflow: hidden;
 }
 .imp-card-org { font-size: 8px; color: rgba(255,255,255,.9); font-weight: 600; flex: 1; line-height: 1.2; }
 .imp-card-type-badge {
@@ -3857,6 +3863,7 @@ body.landing-body {
 .imp-card-back-sd {
   width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center;
   justify-content: center; font-size: 7px; font-weight: 800; color: #fff; flex-shrink: 0;
+  object-fit: cover; overflow: hidden;
 }
 .imp-card-back-title { font-size: 8px; font-weight: 700; color: #0f172a; }
 .imp-card-back-sub   { font-size: 6px; color: #64748b; }
@@ -3885,6 +3892,7 @@ body.landing-body {
   width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.2);
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; font-weight: 800; color: #fff;
+  object-fit: cover; overflow: hidden;
 }
 .imp-fiche-header-title { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
 .imp-fiche-header-sub   { font-size: 11px; opacity: .85; }
@@ -3959,6 +3967,7 @@ body.landing-body {
   width: 36px; height: 36px; border-radius: 50%; background: #1e40af;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0;
+  object-fit: cover; overflow: hidden;
 }
 .imp-liste-title { font-size: 14px; font-weight: 700; color: #0f172a; }
 .imp-liste-sub   { font-size: 10px; color: #64748b; margin-top: 2px; }
@@ -4008,6 +4017,7 @@ body.landing-body {
   width: 40px; height: 40px; border-radius: 50%; background: #1e40af;
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 800; color: #fff;
+  object-fit: cover; overflow: hidden;
 }
 .imp-qr-header-title { font-size: 15px; font-weight: 700; color: #0f172a; }
 .imp-qr-header-sub   { font-size: 11px; color: #64748b; margin-top: 2px; }
@@ -4233,6 +4243,11 @@ body.landing-body {
 .adh-prog-step.done   .adh-prog-num { background: var(--green); color: #fff; }
 .adh-prog-sep { width: 32px; height: 2px; background: var(--border-color); border-radius: 2px; }
 .adh-prog-sep.done { background: var(--green); }
+@media (max-width: 480px) {
+  .adh-progress-bar { gap: 4px; }
+  .adh-prog-step span { display: none; }
+  .adh-prog-sep { width: 14px; }
+}
 
 /* Org result grid */
 .org-results { min-height: 120px; }
@@ -4453,3 +4468,14 @@ body.landing-body {
   text-align: center; padding: 20px; background: #f0fdf4; color: #065f46;
   border-radius: var(--radius); font-size: 14px; line-height: 1.8;
 }
+
+/* ── Console base de données (admin) ─────────────────────── */
+.dba-table-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 2px;
+  border: none; background: none; border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: #334155; font-family: inherit;
+}
+.dba-table-btn:hover { background: #f1f5f9; }
+.dba-table-btn.active { background: #eff6ff; color: #1e40af; font-weight: 700; }
+.dba-count { font-size: 11px; color: #94a3b8; font-weight: 600; }

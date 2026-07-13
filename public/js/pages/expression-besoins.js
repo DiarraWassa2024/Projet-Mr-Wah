@@ -15,7 +15,7 @@ router.register('expression-besoins', async () => {
       </button>
       <div class="pub-form-card">
         <div class="pub-form-logo">
-          <div class="logo-sm">SD</div>
+          <img src="/images/logo.svg" class="logo-sm" alt="SoliDev">
           <span>SoliDev</span>
         </div>
 

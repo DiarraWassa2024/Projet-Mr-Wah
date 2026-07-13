@@ -54,7 +54,7 @@ router.register('beneficiaires', async () => {
 
   function ouvrirCarte(idBenef) {
     const token = localStorage.getItem('gpo_token');
-    const w = window.open('', '_blank', 'width=480,height=420');
+    const w = window.open('', '_blank', 'width=620,height=780');
     fetch(`/api/beneficiaires/${idBenef}/carte`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.text())
       .then(html => { w.document.open(); w.document.write(html); w.document.close(); })

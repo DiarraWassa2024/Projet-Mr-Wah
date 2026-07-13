@@ -17,7 +17,12 @@ function genNumRecu(id) {
 
 /* ── GET /api/paiements/stats ─────────────────────────────── */
 router.get('/stats', auth, async (req, res) => {
-  try { ok(res, await PaiementRepository.stats(req.query)); }
+  try {
+    const query = { ...req.query };
+    if (req.user.role === 'gestionnaire') query.org = req.user.NumAgr;
+    if (req.user.role === 'adherent') query.adh = req.user.idAdh;
+    ok(res, await PaiementRepository.stats(query));
+  }
   catch(err) { serverError(res, err); }
 });
 
@@ -36,14 +41,25 @@ router.get('/mon-paiement-attente', auth, async (req, res) => {
     const { NumAgr, idAdh } = req.user;
     if (!NumAgr && !idAdh) return ok(res, null);
 
-    const rows = await PaiementRepository.query(`
-      SELECT pa.*, d.LibDevise, d.Symbole AS SymDevise
-      FROM GPOTB08_Paiement pa
-      LEFT JOIN GPOTB27_Devise d ON pa.CodeDevise = d.CodeDevise
-      WHERE pa.TypePaiement = 'Adhésion' AND pa.Statut = 'En attente'
-        AND ((pa.idAdh = ? AND ? IS NOT NULL) OR (pa.NumAgr = ? AND ? IS NOT NULL))
-      ORDER BY pa.IdPaiement DESC LIMIT 1
-    `, [idAdh || null, idAdh || null, NumAgr || null, NumAgr || null]);
+    // Un adhérent individuel ne voit que SON paiement (idAdh) ; un compte organisation
+    // (gestionnaire, idAdh null) ne voit que le paiement de cotisation de SON organisation
+    // (idAdh IS NULL) — jamais celui d'un membre individuel rattaché à son organisation.
+    const rows = idAdh
+      ? await PaiementRepository.query(`
+          SELECT pa.*, d.LibDevise, d.Symbole AS SymDevise
+          FROM GPOTB08_Paiement pa
+          LEFT JOIN GPOTB27_Devise d ON pa.CodeDevise = d.CodeDevise
+          WHERE pa.TypePaiement = 'Adhésion' AND pa.Statut = 'En attente' AND pa.idAdh = ?
+          ORDER BY pa.IdPaiement DESC LIMIT 1
+        `, [idAdh])
+      : await PaiementRepository.query(`
+          SELECT pa.*, d.LibDevise, d.Symbole AS SymDevise
+          FROM GPOTB08_Paiement pa
+          LEFT JOIN GPOTB27_Devise d ON pa.CodeDevise = d.CodeDevise
+          WHERE pa.TypePaiement = 'Adhésion' AND pa.Statut = 'En attente'
+            AND pa.NumAgr = ? AND pa.idAdh IS NULL
+          ORDER BY pa.IdPaiement DESC LIMIT 1
+        `, [NumAgr]);
 
     ok(res, rows[0] || null);
   } catch (err) { serverError(res, err); }
@@ -53,12 +69,14 @@ router.get('/mon-paiement-attente', auth, async (req, res) => {
 /* Déclenche le paiement (simulé) via l'opérateur choisi. */
 router.post('/:id/payer', auth, async (req, res) => {
   try {
-    // Un utilisateur non-admin ne peut régler que son propre paiement en attente
+    // Un utilisateur non-admin ne peut régler que son propre paiement en attente —
+    // un adhérent individuel le sien (idAdh), un compte organisation le paiement de
+    // cotisation de SON organisation (NumAgr, jamais celui d'un membre individuel).
     if (req.user.role !== 'admin') {
       const pay = await PaiementRepository.findById(req.params.id);
       const isOwner = pay && (
         (req.user.idAdh && pay.idAdh === req.user.idAdh) ||
-        (req.user.NumAgr && pay.NumAgr === req.user.NumAgr)
+        (!req.user.idAdh && req.user.NumAgr && pay.NumAgr === req.user.NumAgr && !pay.idAdh)
       );
       if (!isOwner) return res.status(403).json({ message: 'Ce paiement ne vous appartient pas' });
     }
@@ -76,7 +94,12 @@ router.post('/:id/payer', auth, async (req, res) => {
 
 /* ── GET /api/paiements ───────────────────────────────────── */
 router.get('/', auth, async (req, res) => {
-  try { ok(res, await PaiementRepository.findAll(req.query)); }
+  try {
+    const query = { ...req.query };
+    if (req.user.role === 'gestionnaire') query.org = req.user.NumAgr;
+    if (req.user.role === 'adherent') query.adh = req.user.idAdh;
+    ok(res, await PaiementRepository.findAll(query));
+  }
   catch(err) { serverError(res, err); }
 });
 
@@ -85,6 +108,10 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const row = await PaiementRepository.findByIdFull(req.params.id);
     if (!row) return res.status(404).json({ message: 'Paiement introuvable' });
+    if (req.user.role === 'gestionnaire' && row.NumAgr !== req.user.NumAgr)
+      return res.status(403).json({ message: 'Ce paiement ne concerne pas votre organisation' });
+    if (req.user.role === 'adherent' && row.idAdh !== req.user.idAdh)
+      return res.status(403).json({ message: 'Ce paiement ne vous concerne pas' });
     ok(res, row);
   } catch(err) { serverError(res, err); }
 });
@@ -156,6 +183,11 @@ router.put('/:id', auth, async (req, res) => {
 /* ── PUT /api/paiements/:id/statut ───────────────────────── */
 router.put('/:id/statut', auth, roles('admin','gestionnaire'), async (req, res) => {
   try {
+    if (req.user.role === 'gestionnaire') {
+      const existing = await PaiementRepository.findByIdFull(req.params.id);
+      if (!existing || existing.NumAgr !== req.user.NumAgr)
+        return res.status(403).json({ message: 'Ce paiement ne concerne pas votre organisation' });
+    }
     const { statut, sendEmail: doEmail } = req.body;
     if (!STATUTS_VALID.includes(statut)) return badRequest(res, 'Statut invalide');
     await PaiementRepository.update(req.params.id, { Statut: statut });
@@ -178,6 +210,8 @@ router.post('/:id/email', auth, roles('admin','gestionnaire'), async (req, res) 
   try {
     const pay = await PaiementRepository.findByIdFull(req.params.id);
     if (!pay)          return res.status(404).json({ message: 'Paiement introuvable' });
+    if (req.user.role === 'gestionnaire' && pay.NumAgr !== req.user.NumAgr)
+      return res.status(403).json({ message: 'Ce paiement ne concerne pas votre organisation' });
     if (!pay.EmailAdh) return badRequest(res, 'Adhérent sans email');
     await envoyerEmailPaiement(pay, pay.Statut || 'creation');
     await PaiementRepository.update(req.params.id, { EmailEnvoye: 1 });
@@ -188,6 +222,11 @@ router.post('/:id/email', auth, roles('admin','gestionnaire'), async (req, res) 
 /* ── DELETE /api/paiements/:id ───────────────────────────── */
 router.delete('/:id', auth, roles('admin','gestionnaire'), async (req, res) => {
   try {
+    if (req.user.role === 'gestionnaire') {
+      const existing = await PaiementRepository.findByIdFull(req.params.id);
+      if (!existing || existing.NumAgr !== req.user.NumAgr)
+        return res.status(403).json({ message: 'Ce paiement ne concerne pas votre organisation' });
+    }
     await PaiementRepository.delete(req.params.id);
     ok(res, { message: 'Paiement supprimé' });
   } catch(err) { serverError(res, err); }

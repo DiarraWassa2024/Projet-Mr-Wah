@@ -10,7 +10,7 @@ router.register('paiement-adhesion', async (params = {}) => {
         <button class="pub-form-back" onclick="landingNav('landing')">← Retour à l'accueil</button>
         <div class="pub-form-card" style="max-width:480px">
           <div class="pub-form-logo">
-            <div class="logo-sm" style="background:linear-gradient(135deg,#1e40af,#4f46e5)">💳</div>
+            <img src="/images/logo.svg" class="logo-sm" alt="SoliDev">
             <span>SoliDev</span>
           </div>
           ${content}

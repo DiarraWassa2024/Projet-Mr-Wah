@@ -9,10 +9,6 @@ const auth = (() => {
     return data.user;
   }
 
-  async function register(username, email, password) {
-    return api.post('/auth/register', { username, email, password });
-  }
-
   function logout() {
     localStorage.removeItem('gpo_token');
     localStorage.removeItem('gpo_user');
@@ -21,5 +17,5 @@ const auth = (() => {
     router.navigate('landing');
   }
 
-  return { isLoggedIn, getUser, login, register, logout };
+  return { isLoggedIn, getUser, login, logout };
 })();

@@ -30,7 +30,7 @@ class AdherentRepository extends BaseRepository {
 
   async findByIdFull(id) {
     const adh = await this.queryOne(`
-      SELECT a.*, o.LibOrg, r.LibRole, s.LibStatut
+      SELECT a.*, o.LibOrg, o.Logo AS OrgLogo, r.LibRole, s.LibStatut
       FROM GPOTB02_Adherent a
       LEFT JOIN GPOTB01_Organisation o ON a.NumAgr   = o.NumAgr
       LEFT JOIN GPOTB11_Role r         ON a.IdRole   = r.IdRole

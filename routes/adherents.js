@@ -4,10 +4,24 @@ const fs      = require('fs');
 const multer  = require('multer');
 const qrcode  = require('qrcode');
 const auth    = require('../middleware/auth');
+const roles   = require('../middleware/roles');
 const AdherentRepository     = require('../repositories/AdherentRepository');
 const OrganisationRepository = require('../repositories/OrganisationRepository');
 const emailSvc = require('../services/EmailService');
-const { ok, created, notFound, badRequest, serverError } = require('../helpers/response');
+const { ok, created, notFound, badRequest, forbidden, serverError } = require('../helpers/response');
+const { buildCarteOfficielle } = require('../helpers/carteTemplate');
+
+/**
+ * Un gestionnaire gère tous les adhérents de sa propre organisation ; un adhérent (individu
+ * connecté à son propre espace) ne voit/modifie que SA PROPRE fiche, jamais celle d'un autre
+ * membre de l'organisation ; l'admin voit et modifie tout.
+ */
+function isOwnAdh(req, adh) {
+  if (req.user.role === 'admin') return true;
+  if (req.user.role === 'gestionnaire') return !!(adh && adh.NumAgr === req.user.NumAgr);
+  if (req.user.role === 'adherent') return !!(adh && adh.idAdh === req.user.idAdh);
+  return false;
+}
 
 // ── Multer — photos & documents adhérents ──────────────────────
 const photoDir = path.join(__dirname, '../public/uploads/adherents/photos');
@@ -79,7 +93,13 @@ function validate(body, isCreate) {
 // ── GET /api/adherents ─────────────────────────────────────────
 router.get('/', auth, async (req, res) => {
   try {
-    ok(res, await AdherentRepository.findAll(req.query));
+    if (req.user.role === 'adherent') {
+      const adh = req.user.idAdh ? await AdherentRepository.findByIdFull(req.user.idAdh) : null;
+      return ok(res, adh ? [adh] : []);
+    }
+    const query = { ...req.query };
+    if (req.user.role === 'gestionnaire') query.org = req.user.NumAgr;
+    ok(res, await AdherentRepository.findAll(query));
   } catch (err) { serverError(res, err); }
 });
 
@@ -88,18 +108,21 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
     ok(res, adh);
   } catch (err) { serverError(res, err); }
 });
 
 // ── POST /api/adherents ────────────────────────────────────────
-router.post('/', auth, uploadPhoto.single('photo'), async (req, res) => {
+router.post('/', auth, roles('admin', 'gestionnaire'), uploadPhoto.single('photo'), async (req, res) => {
   const errMsg = validate(req.body, true);
   if (errMsg) return badRequest(res, errMsg);
 
-  const { NomAdh, PrenAdh, DateNaissAdh, EmailAdh, AdrAdh, NumAgr,
+  const { NomAdh, PrenAdh, DateNaissAdh, LieuNaissAdh, EmailAdh, AdrAdh,
           IdRole, DateAdhesion, TelAdh, FonctionAdh, Profession,
           Nationalite, CodePays, NumCNI, Sexe } = req.body;
+  // Un gestionnaire ne peut créer un adhérent que sous sa propre organisation
+  const NumAgr = req.user.role === 'gestionnaire' ? req.user.NumAgr : req.body.NumAgr;
 
   try {
     const org = await OrganisationRepository.findByIdFull(NumAgr);
@@ -111,7 +134,7 @@ router.post('/', auth, uploadPhoto.single('photo'), async (req, res) => {
 
     const result = await AdherentRepository.create({
       NomAdh: NomAdh.trim(), PrenAdh: PrenAdh || null,
-      DateNaissAdh: DateNaissAdh || null, EmailAdh: EmailAdh || null,
+      DateNaissAdh: DateNaissAdh || null, LieuNaissAdh: LieuNaissAdh || null, EmailAdh: EmailAdh || null,
       AdrAdh: AdrAdh || null, NumAgr,
       IdRole: IdRole ? parseInt(IdRole) : null,
       IdStatut: 4,
@@ -139,19 +162,22 @@ router.put('/:id', auth, async (req, res) => {
   const errMsg = validate(req.body, false);
   if (errMsg) return badRequest(res, errMsg);
 
-  const { NomAdh, PrenAdh, DateNaissAdh, EmailAdh, AdrAdh, NumAgr,
+  const { NomAdh, PrenAdh, DateNaissAdh, LieuNaissAdh, EmailAdh, AdrAdh, NumAgr,
           IdRole, DateAdhesion, TelAdh, FonctionAdh, Profession,
           Nationalite, CodePays, NumCNI, Sexe } = req.body;
 
   try {
     const existing = await AdherentRepository.findByIdFull(req.params.id);
     if (!existing) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, existing)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
+    // Seul l'admin peut transférer un adhérent vers une autre organisation
+    const targetNumAgr = req.user.role === 'admin' ? (NumAgr || existing.NumAgr) : existing.NumAgr;
     await AdherentRepository.update(req.params.id, {
       NomAdh: NomAdh ? NomAdh.trim() : existing.NomAdh,
-      PrenAdh: PrenAdh || null, DateNaissAdh: DateNaissAdh || null,
+      PrenAdh: PrenAdh || null, DateNaissAdh: DateNaissAdh || null, LieuNaissAdh: LieuNaissAdh || null,
       EmailAdh: EmailAdh || null, AdrAdh: AdrAdh || null,
-      NumAgr: NumAgr || existing.NumAgr,
+      NumAgr: targetNumAgr,
       IdRole: IdRole ? parseInt(IdRole) : null,
       DateAdhesion: DateAdhesion || null,
       TelAdh: TelAdh || null, FonctionAdh: FonctionAdh || null,
@@ -169,6 +195,7 @@ router.post('/:id/photo', auth, uploadPhoto.single('photo'), async (req, res) =>
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
     if (adh.Photo) {
       const fp = path.join(__dirname, '../public', adh.Photo);
@@ -181,10 +208,11 @@ router.post('/:id/photo', auth, uploadPhoto.single('photo'), async (req, res) =>
 });
 
 // ── POST /api/adherents/:id/statut ────────────────────────────
-router.post('/:id/statut', auth, async (req, res) => {
+router.post('/:id/statut', auth, roles('admin', 'gestionnaire'), async (req, res) => {
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
     const { action, motif } = req.body;
     const transition = (TRANSITIONS[adh.IdStatut] || []).find(t => t.action === action);
@@ -216,75 +244,32 @@ router.get('/:id/carte', auth, async (req, res) => {
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
     const qrData = adh.NumAdherent || `GPO-ADH-${adh.idAdh}`;
-    const qrUrl  = await qrcode.toDataURL(qrData, { width: 180, margin: 1, color: { dark: '#1e3a5f', light: '#ffffff' } });
+    const qrUrl  = await qrcode.toDataURL(qrData, { width: 220, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } });
 
-    const photoHtml = adh.Photo
-      ? `<img src="${adh.Photo}" class="card-photo" alt="photo">`
-      : `<div class="card-photo card-initial">${((adh.PrenAdh || adh.NomAdh || '?')[0]).toUpperCase()}</div>`;
+    const dateExpiration = adh.DateAdhesion
+      ? new Date(new Date(adh.DateAdhesion).setFullYear(new Date(adh.DateAdhesion).getFullYear() + 1))
+      : null;
 
-    const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Carte — ${adh.NumAdherent || adh.idAdh}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#e5e7eb;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:'Segoe UI',Arial,sans-serif;gap:20px}
-  .card{width:360px;height:220px;border-radius:18px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.28);position:relative}
-  .card-bg{width:100%;height:100%;background:linear-gradient(135deg,#1e3a5f 0%,#1a56db 55%,#312e81 100%);padding:20px 22px;display:flex;flex-direction:column;color:#fff}
-  .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
-  .card-org{font-size:9px;text-transform:uppercase;letter-spacing:2px;opacity:.75;max-width:200px;line-height:1.4}
-  .card-logo{font-size:20px}
-  .card-main{display:flex;gap:16px;flex:1;align-items:center}
-  .card-photo{width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.4);flex-shrink:0}
-  .card-initial{display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700;background:rgba(255,255,255,.2)}
-  .card-info{flex:1;min-width:0}
-  .card-name{font-size:16px;font-weight:700;line-height:1.2;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .card-role{font-size:10px;opacity:.8;margin-bottom:8px}
-  .card-id{font-family:monospace;font-size:12px;background:rgba(255,255,255,.18);padding:5px 10px;border-radius:6px;letter-spacing:1.5px;display:inline-block}
-  .card-footer{display:flex;justify-content:space-between;align-items:flex-end;margin-top:12px}
-  .card-meta{font-size:9px;opacity:.65;line-height:1.7}
-  .card-qr{background:#fff;border-radius:8px;padding:3px;display:flex}
-  .card-qr img{display:block}
-  .actions{display:flex;gap:10px}
-  .btn{padding:10px 24px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600}
-  .btn-print{background:#1a56db;color:#fff}
-  .btn-close{background:#e5e7eb;color:#374151}
-  @media print{body{background:none;justify-content:flex-start;padding:20px}.card{box-shadow:none}.actions{display:none}}
-</style>
-</head>
-<body>
-<div class="card">
-  <div class="card-bg">
-    <div class="card-header">
-      <div class="card-org">SoliDev<br>${(adh.LibOrg || 'Organisation').substring(0, 30)}</div>
-      <div class="card-logo">🌍</div>
-    </div>
-    <div class="card-main">
-      ${photoHtml}
-      <div class="card-info">
-        <div class="card-name">${adh.PrenAdh ? adh.PrenAdh + ' ' : ''}${adh.NomAdh}</div>
-        <div class="card-role">${adh.LibRole || 'Membre'}${adh.FonctionAdh ? ' · ' + adh.FonctionAdh : ''}</div>
-        <div class="card-id">${adh.NumAdherent || '—'}</div>
-      </div>
-      <div class="card-qr"><img src="${qrUrl}" width="58" height="58" alt="QR"></div>
-    </div>
-    <div class="card-footer">
-      <div class="card-meta">
-        Adhésion : ${adh.DateAdhesion ? new Date(adh.DateAdhesion).toLocaleDateString('fr-FR') : '—'}<br>
-        ${adh.Sexe ? adh.Sexe + (adh.Profession ? ' · ' + adh.Profession : '') : (adh.Profession || '')}
-      </div>
-    </div>
-  </div>
-</div>
-<div class="actions">
-  <button class="btn btn-print" onclick="window.print()">🖨️ Imprimer</button>
-  <button class="btn btn-close" onclick="window.close()">Fermer</button>
-</div>
-</body>
-</html>`;
+    const html = buildCarteOfficielle({
+      type: 'adherent',
+      orgName: adh.LibOrg || 'SoliDev',
+      orgLogoUrl: adh.OrgLogo || null,
+      roleLabel: adh.LibRole || adh.FonctionAdh || 'Membre',
+      idCode: adh.NumAdherent,
+      nom: adh.NomAdh,
+      prenom: adh.PrenAdh,
+      dateNaissance: adh.DateNaissAdh,
+      sexe: adh.Sexe,
+      lieuNaissance: adh.LieuNaissAdh,
+      photoUrl: adh.Photo,
+      initiales: ((adh.PrenAdh || adh.NomAdh || '?')[0] || '?').toUpperCase(),
+      qrDataUrl: qrUrl,
+      dateEtablissement: adh.DateAdhesion,
+      dateExpiration,
+    });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
@@ -294,6 +279,10 @@ router.get('/:id/carte', auth, async (req, res) => {
 // ── GET /api/adherents/:id/documents ──────────────────────────
 router.get('/:id/documents', auth, async (req, res) => {
   try {
+    if (req.user.role === 'gestionnaire') {
+      const adh = await AdherentRepository.findByIdFull(req.params.id);
+      if (!adh || !isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
+    }
     ok(res, await AdherentRepository.getDocuments(req.params.id));
   } catch (err) { serverError(res, err); }
 });
@@ -307,6 +296,7 @@ router.post('/:id/documents', auth, uploadDoc.single('fichier'), async (req, res
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
     const CheminFichier = `/uploads/adherents/docs/${req.file.filename}`;
     const id = await AdherentRepository.addDocument({
@@ -321,6 +311,10 @@ router.post('/:id/documents', auth, uploadDoc.single('fichier'), async (req, res
 // ── DELETE /api/adherents/:id/documents/:docId ────────────────
 router.delete('/:id/documents/:docId', auth, async (req, res) => {
   try {
+    if (req.user.role === 'gestionnaire') {
+      const adh = await AdherentRepository.findByIdFull(req.params.id);
+      if (!adh || !isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
+    }
     const doc = await AdherentRepository.getDocumentById(req.params.docId, req.params.id);
     if (!doc) return notFound(res, 'Document non trouvé');
 
@@ -332,7 +326,7 @@ router.delete('/:id/documents/:docId', auth, async (req, res) => {
 });
 
 // ── POST /api/adherents/:id/paiements ─────────────────────────
-router.post('/:id/paiements', auth, async (req, res) => {
+router.post('/:id/paiements', auth, roles('admin', 'gestionnaire'), async (req, res) => {
   const { MontantPaiement, TypePaiement, DatePaiement, Reference, CodeDevise, NotePaiement } = req.body;
   if (!MontantPaiement || isNaN(parseFloat(MontantPaiement)) || parseFloat(MontantPaiement) <= 0)
     return badRequest(res, 'Montant invalide (nombre positif requis)');
@@ -340,6 +334,7 @@ router.post('/:id/paiements', auth, async (req, res) => {
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
     const id = await AdherentRepository.addPaiement({
       idAdh: parseInt(req.params.id),
@@ -352,10 +347,11 @@ router.post('/:id/paiements', auth, async (req, res) => {
 });
 
 // ── DELETE /api/adherents/:id ─────────────────────────────────
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, roles('admin', 'gestionnaire'), async (req, res) => {
   try {
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
+    if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
     if (adh.IdStatut === 1)
       return badRequest(res, "Impossible de supprimer un adhérent actif. Résiliez-le d'abord.");
     await AdherentRepository.delete(req.params.id);

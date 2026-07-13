@@ -9,7 +9,7 @@ router.register('verification', () => {
         <div class="pub-form-card" style="max-width:440px">
           <div class="pub-form-logo">
             <div class="pub-form-brand">
-              <div class="logo-sm">SD</div>
+              <img src="/images/logo.svg" class="logo-sm" alt="SoliDev">
               <span>SoliDev</span>
             </div>
           </div>

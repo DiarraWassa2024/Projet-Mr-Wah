@@ -1,5 +1,5 @@
 {
-  "appName": "GPO – Fitantanana Fikambanana",
+  "appName": "SoliDev – Fitantanana Fikambanana",
   "welcome": "Tongasoa",
   "selectCountry": "Safidio ny firenenao",
   "selectLanguage": "Safidio ny fiteninao",
@@ -12,6 +12,7 @@
   "username": "Anarana mpampiasa",
   "dashboard": "Tabilao fitantanana",
   "organisations": "Fikambanana",
+  "mon-organisation": "Ny fikambanako",
   "adherents": "Mpikambana",
   "beneficiaires": "Mpandray tombontsoa",
   "paiements": "Fandoavam-bola",

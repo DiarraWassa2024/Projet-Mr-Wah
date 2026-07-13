@@ -54,10 +54,11 @@ class PaiementRepository extends BaseRepository {
     return rows[0] || null;
   }
 
-  async stats({ org, dateFrom, dateTo } = {}) {
+  async stats({ org, adh, dateFrom, dateTo } = {}) {
     const db = require('../config/database');
     const cond = [], p = [];
     if (org)      { cond.push('NumAgr = ?');        p.push(org); }
+    if (adh)      { cond.push('idAdh = ?');         p.push(adh); }
     if (dateFrom) { cond.push('DatePaiement >= ?'); p.push(dateFrom); }
     if (dateTo)   { cond.push('DatePaiement <= ?'); p.push(dateTo); }
     const W = cond.length ? 'WHERE ' + cond.join(' AND ') : '';

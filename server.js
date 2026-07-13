@@ -52,6 +52,7 @@ app.use('/api/groupes',                require('./routes/groupes'));
 app.use('/api/roles',                  require('./routes/roles'));
 app.use('/api/ia-opportunites',        require('./routes/ia-opportunites'));
 app.use('/api/impressions',            require('./routes/impressions'));
+app.use('/api/db-admin',               require('./routes/db-admin'));
 
 // ── SPA fallback ──────────────────────────────────────────────
 app.get('*', (req, res) => {
@@ -79,5 +80,5 @@ async function initDB() {
 
 const PORT = process.env.PORT || 3000;
 initDB()
-  .then(() => app.listen(PORT, () => console.log(`\n🚀 GPO Platform sur http://localhost:${PORT}\n`)))
+  .then(() => app.listen(PORT, '0.0.0.0', () => console.log(`\n🚀 GPO Platform sur http://localhost:${PORT}\n`)))
   .catch(err => { console.error('Erreur init:', err.message); process.exit(1); });

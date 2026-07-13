@@ -1,5 +1,5 @@
 {
-  "appName": "GPO – إدارة الجمعيات",
+  "appName": "SoliDev – إدارة الجمعيات",
   "welcome": "مرحبًا",
   "selectCountry": "اختر بلدك",
   "selectLanguage": "اختر لغتك",
@@ -12,6 +12,7 @@
   "username": "اسم المستخدم",
   "dashboard": "لوحة التحكم",
   "organisations": "المنظمات",
+  "mon-organisation": "منظمتي",
   "adherents": "الأعضاء",
   "beneficiaires": "المستفيدون",
   "paiements": "المدفوعات",

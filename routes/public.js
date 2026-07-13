@@ -19,16 +19,18 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const ext  = path.extname(file.originalname);
-    const name = `agr_${Date.now()}${ext}`;
-    cb(null, name);
+    const ext    = path.extname(file.originalname);
+    const prefix = file.fieldname === 'logo' ? 'orglogo_' : 'agr_';
+    cb(null, `${prefix}${Date.now()}${ext}`);
   },
 });
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = ['.pdf','.jpg','.jpeg','.png'];
+    const allowed = file.fieldname === 'logo'
+      ? ['.jpg','.jpeg','.png','.webp','.svg']
+      : ['.pdf','.jpg','.jpeg','.png'];
     cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
   },
 });
@@ -36,7 +38,10 @@ const upload = multer({
 // POST /api/public/adhesion  (multipart/form-data) — inscription d'une organisation
 // L'organisation est créée immédiatement (statut "en attente") et paie sa cotisation
 // tout de suite ; l'admin (ou un gestionnaire existant) valide ensuite le dossier.
-router.post('/adhesion', upload.single('docAgrement'), async (req, res) => {
+router.post('/adhesion', upload.fields([
+  { name: 'docAgrement', maxCount: 1 },
+  { name: 'logo',        maxCount: 1 },
+]), async (req, res) => {
   try {
     const b = req.body;
     const {
@@ -52,7 +57,8 @@ router.post('/adhesion', upload.single('docAgrement'), async (req, res) => {
     if (!repSexe)  return res.status(400).json({ message: 'Le sexe du déclarant est obligatoire' });
     if (!pays)     return res.status(400).json({ message: 'Le pays est obligatoire' });
 
-    const docAgrement = req.file ? `/uploads/${req.file.filename}` : null;
+    const docAgrement = req.files?.docAgrement?.[0] ? `/uploads/${req.files.docAgrement[0].filename}` : null;
+    const logo         = req.files?.logo?.[0]        ? `/uploads/${req.files.logo[0].filename}`        : null;
     const now = new Date().toISOString().replace('T',' ').split('.')[0];
 
     // Identifiant plateforme généré automatiquement (le champ "numéro d'agrément" saisi par
@@ -77,6 +83,7 @@ router.post('/adhesion', upload.single('docAgrement'), async (req, res) => {
       Description: descriptionComplete,
       NomRepresentant: [repPrenom, repNom].filter(Boolean).join(' ') || null,
       FonctionRepresentant: repFonction || null,
+      Logo: logo,
       IdStatut: 4,
     });
 

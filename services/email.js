@@ -25,25 +25,27 @@ const FROM = process.env.SMTP_FROM || '"SoliDev Platform" <noreply@solidev.afric
 
 /* ── Templates ───────────────────────────────────────── */
 function wrapHtml(body) {
+  const appUrl = process.env.APP_URL || 'http://localhost:3000';
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
-  body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;margin:0;padding:24px}
-  .card{background:#fff;border-radius:16px;max-width:560px;margin:0 auto;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.09)}
-  .hdr{background:linear-gradient(135deg,#1e40af,#4f46e5);padding:32px 36px;color:#fff;text-align:center}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f0;margin:0;padding:24px}
+  .card{background:#fff;border-radius:16px;max-width:560px;margin:0 auto;overflow:hidden;box-shadow:0 4px 24px rgba(14,53,50,.1)}
+  .hdr{background:linear-gradient(135deg,#145c56,#2f8f7f);padding:28px 36px 30px;color:#fff;text-align:center}
+  .hdr img{width:44px;height:44px;border-radius:12px;margin-bottom:12px}
   .hdr h1{margin:0 0 6px;font-size:22px;font-weight:700}
   .hdr p{margin:0;opacity:.8;font-size:14px}
   .body{padding:32px 36px}
   .body p{margin:0 0 14px;color:#374151;line-height:1.6;font-size:14px}
-  .highlight{background:#f0fdf4;border-left:4px solid #10b981;padding:14px 18px;border-radius:8px;margin:18px 0;color:#064e3b;font-size:14px}
-  .highlight.warn{background:#fff7ed;border-color:#f97316;color:#7c2d12}
-  .btn{display:inline-block;background:linear-gradient(135deg,#1e40af,#4f46e5);color:#fff;
+  .highlight{background:#f0fdf4;border-left:4px solid #4f7d5c;padding:14px 18px;border-radius:8px;margin:18px 0;color:#22302d;font-size:14px}
+  .highlight.warn{background:#fdf3ea;border-color:#c1703f;color:#7a3d1e}
+  .btn{display:inline-block;background:linear-gradient(135deg,#145c56,#2f8f7f);color:#fff;
        padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;margin:10px 0}
-  .ftr{background:#f8fafc;padding:20px 36px;border-top:1px solid #e5e7eb;text-align:center;
-       color:#9ca3af;font-size:12px}
-  strong{color:#1e293b}
+  .ftr{background:#f7f4ee;padding:20px 36px;border-top:1px solid #e3dccb;text-align:center;
+       color:#9c9a8f;font-size:12px}
+  strong{color:#22302d}
 </style>
-</head><body><div class="card">${body}</div></body></html>`;
+</head><body><div class="card"><div class="hdr-logo-wrap" style="background:linear-gradient(135deg,#145c56,#2f8f7f);text-align:center;padding-top:24px"><img src="${appUrl}/images/logo.svg" alt="SoliDev" style="width:44px;height:44px;border-radius:12px"></div>${body}</div></body></html>`;
 }
 
 /**

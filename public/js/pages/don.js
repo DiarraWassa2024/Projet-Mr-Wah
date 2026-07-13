@@ -8,7 +8,7 @@ router.register('don', async () => {
 
       <div class="pub-form-card don-card">
         <div class="pub-form-logo">
-          <div class="logo-sm" style="background:linear-gradient(135deg,#e91e8c,#f59e0b)">💝</div>
+          <img src="/images/logo.svg" class="logo-sm" alt="SoliDev">
           <span>SoliDev</span>
         </div>
 

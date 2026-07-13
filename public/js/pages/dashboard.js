@@ -2,6 +2,14 @@ router.register('dashboard', async () => {
   const app = document.getElementById('app');
   app.innerHTML = `<div class="dash-loading"><div class="dash-spinner"></div></div>`;
 
+  const currentUser = auth.getUser();
+  if (currentUser && currentUser.role === 'gestionnaire') {
+    return renderGestionnaireDashboard(app, currentUser);
+  }
+  if (currentUser && currentUser.role === 'adherent') {
+    return renderAdherentDashboard(app, currentUser);
+  }
+
   try {
     const [stats, demandesStats, user] = await Promise.all([
       api.get(dateFilter.buildUrl('/ref/dashboard/stats')),
@@ -517,3 +525,304 @@ router.register('dashboard', async () => {
     app.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
 });
+
+/* ── Tableau de bord — vue gestionnaire (une seule organisation) ─────────── */
+async function renderGestionnaireDashboard(app, user) {
+  const fmtDate = (d, opts) => d ? new Date(d).toLocaleDateString('fr-FR', opts||{day:'2-digit',month:'short',year:'numeric'}) : '—';
+  const now = new Date();
+  const hour = now.getHours();
+  const greet = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
+
+  const STATUT_BADGE = {
+    1: { label: 'Active',     color: '#059669', bg: '#ecfdf5' },
+    2: { label: 'Désactivée', color: '#6b7280', bg: '#f3f4f6' },
+    3: { label: 'Suspendue',  color: '#d97706', bg: '#fffbeb' },
+    4: { label: 'En attente', color: '#2563eb', bg: '#eff6ff' },
+    5: { label: 'Clôturée',   color: '#dc2626', bg: '#fef2f2' },
+  };
+
+  async function load() {
+    app.innerHTML = `<div class="dash-loading"><div class="dash-spinner"></div></div>`;
+    try {
+      const [org, demStats, pendingDemandes, opportunites] = await Promise.all([
+        user.NumAgr ? api.get(`/organisations/${user.NumAgr}`) : Promise.resolve(null),
+        api.get('/demandes/stats').catch(() => ({ pending: 0, total: 0, actif: 0 })),
+        api.get('/demandes?statut=' + encodeURIComponent('En attente de validation')).catch(() => []),
+        api.get('/opportunites?statut=Active').catch(() => []),
+      ]);
+      render(org, demStats, pendingDemandes, opportunites);
+    } catch (err) {
+      app.innerHTML = `<div class="msg error">${err.message}</div>`;
+    }
+  }
+
+  function render(org, demStats, pendingDemandes, opportunites) {
+    const statut = org ? (STATUT_BADGE[org.IdStatut] || { label: org.LibStatut || '—', color: '#6b7280', bg: '#f3f4f6' }) : null;
+
+    const demandeRows = (pendingDemandes || []).map((d, i) => `
+      <div class="dash-panel" style="margin-bottom:12px;animation-delay:${i*40}ms">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:16px 20px;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:700;font-size:15px;color:#0f172a">${(d.repPrenom||'')} ${(d.repNom||'—')}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:2px">
+              ${d.emailOrg ? `✉️ ${d.emailOrg}` : ''} ${d.telOrg ? ` · ☎️ ${d.telOrg}` : ''}
+            </div>
+            <div style="font-size:13px;color:#64748b;margin-top:2px">
+              ${d.ville ? `📍 ${d.ville}` : ''} ${d.fonctionSouhaitee ? ` · Fonction souhaitée : <strong>${d.fonctionSouhaitee}</strong>` : ''}
+            </div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:4px">Demande du ${fmtDate(d.dateDemande)}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <button class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="gestDashAccepter(${d.idDemande})">✅ Accepter</button>
+            <button class="btn btn-secondary" style="padding:8px 16px;font-size:13px" onclick="gestDashRefuser(${d.idDemande})">✖️ Refuser</button>
+          </div>
+        </div>
+      </div>`).join('') || `<p class="dt-empty" style="padding:24px">Aucune demande en attente pour le moment.</p>`;
+
+    const oppRows = (opportunites || []).slice(0, 6).map((o, i) => `
+      <div class="opp-item" style="animation-delay:${i*40}ms">
+        <div class="opp-header">
+          <div class="opp-title">${o.titre||'—'}</div>
+          <span class="opp-statut opp-active">${o.statut||'—'}</span>
+        </div>
+        <div class="opp-meta">
+          ${o.categorie?`<span class="opp-cat">${o.categorie}</span>`:''}
+          ${o.dateLimite?`<span class="opp-deadline">⏰ ${fmtDate(o.dateLimite)}</span>`:''}
+          ${o.budget?`<span class="opp-budget">${Number(o.budget).toLocaleString('fr-FR')} FCFA</span>`:''}
+        </div>
+      </div>`).join('') || '<p class="dt-empty" style="padding:16px 20px">Aucune opportunité active pour le moment.</p>';
+
+    app.innerHTML = `
+      <div class="dash-welcome">
+        <div>
+          <div class="dw-greet">${greet}, <strong>${org ? org.LibOrg : user.username}</strong> 👋</div>
+          <div class="dw-date">${now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+        </div>
+        <div class="dw-actions">
+          ${statut ? `<span class="dw-badge" style="background:${statut.bg};color:${statut.color}">${statut.label}</span>` : ''}
+          <div class="dw-live"><span class="dw-live-dot"></span>Données en temps réel</div>
+        </div>
+      </div>
+
+      <div class="dk-grid dk-grid-5">
+        <div class="dk-card dk-green"><div class="dk-header"><div class="dk-icon dk-igreen">👥</div></div><div class="dk-value">${org?.nbAdherents||0}</div><div class="dk-label">Adhérents</div><div class="dk-sub">membres de mon organisation</div></div>
+        <div class="dk-card dk-amber"><div class="dk-header"><div class="dk-icon dk-iamber">🤝</div></div><div class="dk-value">${org?.nbBeneficiaires||0}</div><div class="dk-label">Bénéficiaires</div><div class="dk-sub">personnes aidées</div></div>
+        <div class="dk-card dk-rose" style="cursor:pointer" onclick="nav('demandes')"><div class="dk-header"><div class="dk-icon dk-irose">📨</div>${demStats.pending>0?'<div class="dk-alert-dot"></div>':''}</div><div class="dk-value">${demStats.pending||0}</div><div class="dk-label">Demandes en attente</div><div class="dk-sub">à traiter</div></div>
+        <div class="dk-card dk-teal" style="cursor:pointer" onclick="nav('opportunites')"><div class="dk-header"><div class="dk-icon dk-iteal">🌟</div></div><div class="dk-value">${(opportunites||[]).length}</div><div class="dk-label">Opportunités</div><div class="dk-sub">actives</div></div>
+        <div class="dk-card dk-blue" style="cursor:pointer" onclick="nav('paiements')"><div class="dk-header"><div class="dk-icon dk-iblue">💰</div></div><div class="dk-value">${demStats.actif||0}</div><div class="dk-label">Adhésions actives</div><div class="dk-sub">total accepté</div></div>
+      </div>
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">📨 Demandes d'adhésion en attente</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div id="gestDemandesList">${demandeRows}</div>
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">🌟 Opportunités qui peuvent vous intéresser</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full">
+        <div class="dp-head">
+          <div><div class="dp-title">Opportunités actives</div><div class="dp-sub">Publiées par l'administration</div></div>
+          <button class="dp-btn" onclick="nav('opportunites')">Voir tout →</button>
+        </div>
+        <div class="opp-list" style="padding:0 4px 12px">${oppRows}</div>
+      </div>`;
+  }
+
+  window.gestDashAccepter = async (id) => {
+    if (!confirm('Accepter cette demande d\'adhésion ? Un email avec les identifiants de connexion sera envoyé à l\'adhérent.')) return;
+    try {
+      await api.put(`/demandes/${id}/accepter`);
+      showToast('Demande acceptée', 'success');
+      load();
+      updatePendingBadge();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  window.gestDashRefuser = async (id) => {
+    const motif = prompt('Motif du refus (optionnel) :') || '';
+    try {
+      await api.put(`/demandes/${id}/refuser`, { motif });
+      showToast('Demande refusée', 'success');
+      load();
+      updatePendingBadge();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  load();
+}
+
+/* ── Tableau de bord — vue adhérent (individu, une seule fiche personnelle) ─────────── */
+async function renderAdherentDashboard(app, user) {
+  const fmtDate = (d, opts) => d ? new Date(d).toLocaleDateString('fr-FR', opts||{day:'2-digit',month:'short',year:'numeric'}) : '—';
+  const fmt = n => Number(n||0).toLocaleString('fr-FR');
+  const now = new Date();
+  const hour = now.getHours();
+  const greet = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
+
+  const STATUT_BADGE = {
+    1: { label: 'Actif',      color: '#059669', bg: '#ecfdf5' },
+    2: { label: 'Désactivé',  color: '#6b7280', bg: '#f3f4f6' },
+    3: { label: 'Suspendu',   color: '#d97706', bg: '#fffbeb' },
+    4: { label: 'En attente', color: '#2563eb', bg: '#eff6ff' },
+    5: { label: 'Résilié',    color: '#dc2626', bg: '#fef2f2' },
+  };
+  const PAY_STATUT_CLS = {
+    'Payé':       { bg:'#ecfdf5', color:'#059669', icon:'✅' },
+    'Validé':     { bg:'#ecfdf5', color:'#059669', icon:'✔️' },
+    'En attente': { bg:'#fffbeb', color:'#d97706', icon:'⏳' },
+    'Impayé':     { bg:'#fef2f2', color:'#dc2626', icon:'❌' },
+    'Rejeté':     { bg:'#fef2f2', color:'#dc2626', icon:'🚫' },
+    'Remboursé':  { bg:'#f5f3ff', color:'#7c3aed', icon:'↩️' },
+  };
+
+  app.innerHTML = `<div class="dash-loading"><div class="dash-spinner"></div></div>`;
+  try {
+    const [adhRows, orgRows, paiements, beneficiaires] = await Promise.all([
+      api.get('/adherents').catch(() => []),
+      api.get('/organisations').catch(() => []),
+      api.get('/paiements').catch(() => []),
+      api.get('/beneficiaires').catch(() => []),
+    ]);
+    const adh = adhRows[0] || null;
+    const org = orgRows[0] || null;
+    render(adh, org, paiements, beneficiaires);
+  } catch (err) {
+    app.innerHTML = `<div class="msg error">${err.message}</div>`;
+  }
+
+  function render(adh, org, paiements, beneficiaires) {
+    const statut = adh ? (STATUT_BADGE[adh.IdStatut] || { label: '—', color: '#6b7280', bg: '#f3f4f6' }) : null;
+    const nomComplet = adh ? [adh.PrenAdh, adh.NomAdh].filter(Boolean).join(' ') : user.username;
+    const totalPaye = (paiements||[]).filter(p => p.Statut === 'Payé' || p.Statut === 'Validé')
+      .reduce((s,p) => s + Number(p.MontantPaiement||0), 0);
+    const topDevise = (paiements||[])[0]?.SymDevise || (paiements||[])[0]?.CodeDevise || 'FCFA';
+
+    const infoRow = (label, val) => `<div class="dem-info-item"><span>${label}</span><strong>${val || '—'}</strong></div>`;
+
+    const paiementRows = (paiements||[]).map((p,i) => `
+      <tr style="animation-delay:${i*30}ms">
+        <td><span class="dt-org">${p.NumRecu || p.Reference || '#'+p.IdPaiement}</span></td>
+        <td>${p.TypePaiement||'—'}</td>
+        <td><span class="dt-amount">${fmt(p.MontantPaiement)}<small> ${p.SymDevise||p.CodeDevise||'FCFA'}</small></span></td>
+        <td><span class="dt-date">${fmtDate(p.DatePaiement)}</span></td>
+        <td>${(() => { const c = PAY_STATUT_CLS[p.Statut]||{bg:'#f3f4f6',color:'#6b7280',icon:'•'};
+          return `<span class="pay-st-badge" style="background:${c.bg};color:${c.color}">${c.icon} ${p.Statut||'—'}</span>`; })()}</td>
+      </tr>`).join('') || `<tr><td colspan="5" class="dt-empty">Aucun paiement enregistré</td></tr>`;
+
+    const benefRows = (beneficiaires||[]).map((b,i) => `
+      <div class="ra-item" style="animation-delay:${i*40}ms">
+        <div class="ra-avatar">${(b.PrenomBenef||b.NomBenef||'?').charAt(0).toUpperCase()}</div>
+        <div class="ra-info">
+          <div class="ra-name">${b.PrenomBenef||''} ${b.NomBenef||'—'}</div>
+          <div class="ra-org">${b.LienParente||'Bénéficiaire'}${b.TelBenef ? ' · ☎️ '+b.TelBenef : ''}${b.EmailBenef ? ' · ✉️ '+b.EmailBenef : ''}</div>
+        </div>
+        <button class="dp-btn" onclick="ouvrirCarteBenef(${b.idBenef})">🪪 Carte</button>
+      </div>`).join('') || '<p class="dt-empty" style="padding:16px 20px">Aucun bénéficiaire enregistré</p>';
+
+    app.innerHTML = `
+      <div class="dash-welcome">
+        <div>
+          <div class="dw-greet">${greet}, <strong>${nomComplet}</strong> 👋</div>
+          <div class="dw-date">${now.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
+        </div>
+        <div class="dw-actions">
+          ${statut ? `<span class="dw-badge" style="background:${statut.bg};color:${statut.color}">${statut.label}</span>` : ''}
+          <div class="dw-live"><span class="dw-live-dot"></span>Données en temps réel</div>
+        </div>
+      </div>
+
+      <div class="dk-grid dk-grid-5">
+        <div class="dk-card dk-violet"><div class="dk-header"><div class="dk-icon dk-iviolet">🏢</div></div><div class="dk-value">${org?1:0}</div><div class="dk-label">Organisation</div><div class="dk-sub">${org ? org.LibOrg : 'aucune'}</div></div>
+        <div class="dk-card dk-amber" style="cursor:pointer" onclick="nav('paiements')"><div class="dk-header"><div class="dk-icon dk-iamber">💰</div></div><div class="dk-value">${(paiements||[]).length}</div><div class="dk-label">Paiements</div><div class="dk-sub">${fmt(totalPaye)} ${topDevise} réglés</div></div>
+        <div class="dk-card dk-green"><div class="dk-header"><div class="dk-icon dk-igreen">🤝</div></div><div class="dk-value">${(beneficiaires||[]).length}</div><div class="dk-label">Bénéficiaires</div><div class="dk-sub">déclarés à ma charge</div></div>
+      </div>
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">👤 Mes informations</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full" style="margin-bottom:20px">
+        <div class="dp-head">
+          <div><div class="dp-title">Profil</div><div class="dp-sub">Informations personnelles enregistrées</div></div>
+          ${adh ? `<button class="dp-btn" onclick="ouvrirCarteAdh(${adh.idAdh})">🪪 Voir ma carte</button>` : ''}
+        </div>
+        <div style="padding:20px">
+          <div class="dem-info-grid">
+            ${infoRow('Email', adh?.EmailAdh)}
+            ${infoRow('Téléphone', adh?.TelAdh)}
+            ${infoRow('Adresse', adh?.AdrAdh)}
+            ${infoRow('Profession', adh?.Profession)}
+            ${infoRow('Numéro adhérent', adh?.NumAdherent)}
+            ${infoRow("Date d'adhésion", adh?.DateAdhesion ? fmtDate(adh.DateAdhesion) : null)}
+          </div>
+        </div>
+      </div>
+
+      ${org ? `
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">🏢 Mon organisation</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full" style="margin-bottom:20px">
+        <div style="padding:20px">
+          <div class="dem-info-grid">
+            ${infoRow('Nom', org.LibOrg)}
+            ${infoRow('Type', org.LibTypOrg)}
+            ${infoRow('Pays', org.LibPays || org.CodePays)}
+            ${infoRow('Email', org.EmailOrg)}
+            ${infoRow('Téléphone', org.TelOrg)}
+            ${infoRow('Siège', org.SiegeOrg)}
+          </div>
+        </div>
+      </div>` : ''}
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">💰 Mes paiements</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full" style="margin-bottom:20px">
+        <div class="dt-wrap">
+          <table class="dt-table">
+            <thead><tr><th>Référence</th><th>Type</th><th>Montant</th><th>Date</th><th>Statut</th></tr></thead>
+            <tbody>${paiementRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">🤝 Mes bénéficiaires</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full">
+        <div class="ra-list">${benefRows}</div>
+      </div>`;
+  }
+}
+
+/* ── Ouverture de la carte officielle (adhérent / bénéficiaire) dans une fenêtre popup ─── */
+function ouvrirCarteAdh(idAdh) {
+  const token = localStorage.getItem('gpo_token');
+  const w = window.open('', '_blank', 'width=620,height=780');
+  fetch(`/api/adherents/${idAdh}/carte`, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.text())
+    .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
+    .catch(() => { w.close(); showToast('Erreur lors de la génération de la carte', 'error'); });
+}
+
+function ouvrirCarteBenef(idBenef) {
+  const token = localStorage.getItem('gpo_token');
+  const w = window.open('', '_blank', 'width=620,height=780');
+  fetch(`/api/beneficiaires/${idBenef}/carte`, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.text())
+    .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
+    .catch(() => { w.close(); showToast('Erreur lors de la génération de la carte', 'error'); });
+}

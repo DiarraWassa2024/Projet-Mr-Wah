@@ -32,9 +32,9 @@ class BeneficiaireRepository extends BaseRepository {
   async findByIdFull(id) {
     return this.queryOne(`
       SELECT b.*,
-             o.LibOrg,
+             o.LibOrg, o.Logo AS OrgLogo,
              s.LibStatut,
-             a.NomAdh, a.PrenAdh, a.NumAdherent, a.EmailAdh AS AdhEmail
+             a.NomAdh, a.PrenAdh, a.NumAdherent, a.EmailAdh AS AdhEmail, a.DateAdhesion
       FROM GPOTB06_Beneficiaire b
       LEFT JOIN GPOTB01_Organisation o ON b.NumAgr   = o.NumAgr
       LEFT JOIN GPOTB15_Statut s       ON b.IdStatut = s.IdStatut

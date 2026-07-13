@@ -223,7 +223,7 @@ function renderCard(r, type) {
 
         <!-- Bandeau -->
         <div class="imp-card-band">
-          <div class="imp-card-logo">SD</div>
+          <img src="/images/logo.svg" class="imp-card-logo" alt="SoliDev">
           <div class="imp-card-org">${escH(org)}</div>
           <div class="imp-card-type-badge" style="background:rgba(255,255,255,.2)">
             ${isAdh ? 'ADHÉRENT' : 'BÉNÉFICIAIRE'}
@@ -265,7 +265,7 @@ function renderCard(r, type) {
         </div>
         <div class="imp-card-back-body">
           <div class="imp-card-back-logo">
-            <span style="background:${col.from}" class="imp-card-back-sd">SD</span>
+            <img src="/images/logo.svg" class="imp-card-back-sd" alt="SoliDev">
             <div>
               <div class="imp-card-back-title">SoliDev</div>
               <div class="imp-card-back-sub">Solidarité &amp; Développement</div>
@@ -327,7 +327,7 @@ function renderFiche(r, type, idx) {
     <!-- EN-TÊTE -->
     <div class="imp-fiche-header" style="background:linear-gradient(135deg,${col.from},${col.to})">
       <div class="imp-fiche-header-left">
-        <div class="imp-fiche-logo">SD</div>
+        <img src="/images/logo.svg" class="imp-fiche-logo" alt="SoliDev">
         <div>
           <div class="imp-fiche-header-title">SoliDev</div>
           <div class="imp-fiche-header-sub">Solidarité &amp; Développement</div>
@@ -448,7 +448,7 @@ function renderListe(data, type) {
     <!-- EN-TÊTE LISTE -->
     <div class="imp-liste-header">
       <div class="imp-liste-hd-left">
-        <div class="imp-liste-logo">SD</div>
+        <img src="/images/logo.svg" class="imp-liste-logo" alt="SoliDev">
         <div>
           <div class="imp-liste-title">SoliDev — ${isAdh ? 'Registre des Adhérents' : 'Registre des Bénéficiaires'}</div>
           <div class="imp-liste-sub">${data.length} enregistrement${data.length!==1?'s':''} · Imprimé le ${now}</div>
@@ -526,7 +526,7 @@ function renderQRGrid(data, type) {
   return `
   <div class="imp-print-zone imp-qr-zone" id="impPrintZone">
     <div class="imp-qr-header">
-      <div class="imp-qr-header-logo">SD</div>
+      <img src="/images/logo.svg" class="imp-qr-header-logo" alt="SoliDev">
       <div>
         <div class="imp-qr-header-title">QR Codes — ${isAdh ? 'Adhérents' : 'Bénéficiaires'}</div>
         <div class="imp-qr-header-sub">SoliDev · ${data.length} code${data.length!==1?'s':''} · ${new Date().toLocaleDateString('fr-FR')}</div>

@@ -53,7 +53,7 @@ function renderPaymentGate(pay) {
       <button class="pub-form-back" onclick="doLogout()">🚪 Déconnexion</button>
       <div class="pub-form-card" style="max-width:460px">
         <div class="pub-form-logo">
-          <div class="pub-form-brand"><div class="logo-sm">SD</div><span>SoliDev</span></div>
+          <div class="pub-form-brand"><img src="/images/logo.svg" class="logo-sm" alt="SoliDev"><span>SoliDev</span></div>
         </div>
         <h2 style="text-align:center;margin-bottom:4px">💳 Réglez votre cotisation</h2>
         <p style="text-align:center;color:#64748b;font-size:13px;margin-bottom:20px">
@@ -79,21 +79,60 @@ function showShell() {
   const user = auth.getUser();
   if (!user) return;
 
-  const initials = (user.username || 'U').charAt(0).toUpperCase();
-  document.body.innerHTML = `
-    <div id="shell">
-      <aside id="sidebar">
-        <!-- Brand -->
-        <div class="sb-brand">
-          <div class="sb-logo">SD</div>
-          <div>
-            <span class="sb-name">SoliDev</span>
-            <span class="sb-tagline" data-i18n="sbTagline">${i18n.t('sbTagline')}</span>
-          </div>
-        </div>
+  const isGestionnaire = user.role === 'gestionnaire';
+  const isAdherent = user.role === 'adherent';
+  const displayName = isGestionnaire ? (user.orgName || user.username)
+                     : isAdherent    ? (user.adherentName || user.username)
+                     : user.username;
+  const roleLabel = isGestionnaire ? 'Organisation' : isAdherent ? 'Adhérent' : user.role;
+  const initials = (displayName || 'U').charAt(0).toUpperCase();
 
-        <!-- Navigation -->
-        <nav class="sb-nav">
+  const navGestionnaire = `
+          <div class="sb-group">
+            <div class="sb-group-label">Principal</div>
+            <a class="sb-item active" data-route="dashboard" href="#" onclick="nav('dashboard')">
+              <span class="sb-icon si-blue">📊</span>
+              <span>Tableau de bord</span>
+            </a>
+          </div>
+          <div class="sb-group">
+            <div class="sb-group-label">Mon espace</div>
+            <a class="sb-item" data-route="mon-organisation" href="#" onclick="nav('mon-organisation')">
+              <span class="sb-icon si-violet">🏢</span>
+              <span>Mon organisation</span>
+            </a>
+            <a class="sb-item" data-route="demandes" href="#" onclick="nav('demandes')" id="demNav">
+              <span class="sb-icon si-indigo">📨</span>
+              <span>Demandes d'adhésion</span>
+              <span class="sb-badge" id="demBadge" style="display:none"></span>
+            </a>
+            <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
+              <span class="sb-icon si-orange">💰</span>
+              <span>Paiements</span>
+            </a>
+            <a class="sb-item" data-route="opportunites" href="#" onclick="nav('opportunites')">
+              <span class="sb-icon si-lime">🔍</span>
+              <span>Recherche des opportunités</span>
+            </a>
+          </div>`;
+
+  const navAdherent = `
+          <div class="sb-group">
+            <div class="sb-group-label">Principal</div>
+            <a class="sb-item active" data-route="dashboard" href="#" onclick="nav('dashboard')">
+              <span class="sb-icon si-blue">📊</span>
+              <span>Tableau de bord</span>
+            </a>
+          </div>
+          <div class="sb-group">
+            <div class="sb-group-label">Mon espace</div>
+            <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
+              <span class="sb-icon si-orange">💰</span>
+              <span>Mes paiements</span>
+            </a>
+          </div>`;
+
+  const navAdmin = `
           <!-- Principal -->
           <div class="sb-group">
             <div class="sb-group-label">Principal</div>
@@ -201,19 +240,37 @@ function showShell() {
               <span class="sb-icon si-violet">🖨️</span>
               <span>Impressions</span>
             </a>
+            <a class="sb-item" data-route="db-admin" href="#" onclick="nav('db-admin')">
+              <span class="sb-icon si-slate">🗄️</span>
+              <span>Base de données</span>
+            </a>
+          </div>`;
+
+  document.body.innerHTML = `
+    <div id="shell">
+      <aside id="sidebar">
+        <!-- Brand -->
+        <div class="sb-brand">
+          <img src="${isGestionnaire && user.orgLogo ? user.orgLogo : '/images/logo.svg'}" class="sb-logo" alt="${isGestionnaire ? (user.orgName||'Organisation') : 'SoliDev'}">
+          <div>
+            <span class="sb-name">SoliDev</span>
+            <span class="sb-tagline" data-i18n="sbTagline">${i18n.t('sbTagline')}</span>
           </div>
-        </nav>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="sb-nav">${isGestionnaire ? navGestionnaire : isAdherent ? navAdherent : navAdmin}</nav>
 
         <!-- User card -->
         <div class="sb-footer">
           <div class="sb-user-card">
             ${user.photo
-              ? `<img class="avatar" style="width:34px;height:34px;object-fit:cover;border-radius:50%" src="${user.photo}" alt="${user.username}">`
+              ? `<img class="avatar" style="width:34px;height:34px;object-fit:cover;border-radius:50%" src="${user.photo}" alt="${displayName}">`
               : `<div class="avatar">${initials}</div>`
             }
             <div>
-              <span class="sb-uname">${user.username}</span>
-              <span class="sb-urole">${user.role}</span>
+              <span class="sb-uname">${displayName}</span>
+              <span class="sb-urole">${roleLabel}</span>
             </div>
             <div class="sb-online"></div>
           </div>
@@ -227,7 +284,7 @@ function showShell() {
             <h1 id="topTitle">SoliDev</h1>
           </div>
           <div class="tb-center">
-            <span class="tb-username">${user.username}</span>
+            <span class="tb-username">${displayName}</span>
             <span class="tb-date-sep">·</span>
             <span class="tb-date" id="tbDate">${new Date().toLocaleDateString(i18n.current(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
@@ -244,9 +301,9 @@ function showShell() {
             </div>
             <!-- User menu -->
             <div class="user-menu" id="userMenu">
-              <button class="user-avatar-btn" onclick="toggleUserMenu(event)" title="${user.username}">
+              <button class="user-avatar-btn" onclick="toggleUserMenu(event)" title="${displayName}">
                 ${user.photo
-                  ? `<img class="user-photo" src="${user.photo}" alt="${user.username}">`
+                  ? `<img class="user-photo" src="${user.photo}" alt="${displayName}">`
                   : `<div class="user-photo user-photo-init">${initials}</div>`
                 }
                 <span class="tb-arrow">▾</span>
@@ -255,8 +312,8 @@ function showShell() {
                 <div class="ud-header">
                   <div class="avatar" style="width:36px;height:36px;font-size:14px">${initials}</div>
                   <div>
-                    <div class="ud-name">${user.username}</div>
-                    <div class="ud-role">${user.role}</div>
+                    <div class="ud-name">${displayName}</div>
+                    <div class="ud-role">${roleLabel}</div>
                   </div>
                 </div>
                 <div class="ud-sep"></div>

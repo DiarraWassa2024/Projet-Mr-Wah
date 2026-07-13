@@ -1,28 +1,19 @@
 router.register('login', () => {
   const app = document.getElementById('app');
-  let isRegister = false;
 
   function render() {
     app.innerHTML = `
       <div class="auth-wrap">
         <div class="auth-card">
           <div class="auth-logo">
-            <div class="logo-circle">GPO</div>
+            <div class="logo-circle"><img src="/images/logo.svg" alt="SoliDev"></div>
             <h1>${i18n.t('appName')}</h1>
             <p>${i18n.t('platformDesc')}</p>
           </div>
-          <div class="auth-tabs">
-            <button class="${!isRegister ? 'active' : ''}" id="tabLogin">${i18n.t('login')}</button>
-            <button class="${isRegister ? 'active' : ''}" id="tabRegister">${i18n.t('register')}</button>
-          </div>
           <form id="authForm" class="auth-form">
-            ${isRegister ? `<div class="form-group">
-              <label>${i18n.t('username')}</label>
-              <input type="text" id="username" required placeholder="${i18n.t('username')}">
-            </div>` : ''}
             <div class="form-group">
-              <label>${isRegister ? i18n.t('email') : i18n.t('loginField')}</label>
-              <input type="${isRegister ? 'email' : 'text'}" id="email" required placeholder="${isRegister ? 'admin@gpo.org' : 'admin'}">
+              <label>${i18n.t('loginField')}</label>
+              <input type="text" id="email" required placeholder="admin">
             </div>
             <div class="form-group">
               <label>${i18n.t('password')}</label>
@@ -30,9 +21,14 @@ router.register('login', () => {
             </div>
             <div id="authMsg" class="msg" style="display:none"></div>
             <button type="submit" class="btn btn-primary btn-block">
-              ${isRegister ? i18n.t('register') : i18n.t('login')}
+              ${i18n.t('login')}
             </button>
           </form>
+          <p style="text-align:center;margin-top:18px;font-size:13px">
+            <button type="button" id="btnGoAdhesion" style="background:none;border:none;cursor:pointer;color:var(--primary);font-weight:600;font-family:inherit;font-size:13px">
+              Pas encore de compte ? Adhérer à SoliDev →
+            </button>
+          </p>
           <div class="lang-menu lang-menu-center" id="loginLangMenu">
             <button class="lang-menu-btn" id="loginLangBtn">
               <span>${(i18n.available().find(l=>l.code===i18n.current())||{}).flag||''} ${i18n.current().toUpperCase()}</span>
@@ -45,8 +41,7 @@ router.register('login', () => {
         </div>
       </div>`;
 
-    document.getElementById('tabLogin').onclick    = () => { isRegister = false; render(); };
-    document.getElementById('tabRegister').onclick = () => { isRegister = true;  render(); };
+    document.getElementById('btnGoAdhesion').onclick = () => landingNav('adhesion');
 
     document.getElementById('loginLangBtn').addEventListener('click', e => {
       e.stopPropagation();
@@ -63,18 +58,6 @@ router.register('login', () => {
       e.preventDefault();
       const msg = document.getElementById('authMsg');
       try {
-        if (isRegister) {
-          await auth.register(
-            document.getElementById('username').value,
-            document.getElementById('email').value,
-            document.getElementById('password').value
-          );
-          isRegister = false;
-          msg.style.display = 'block';
-          msg.className = 'msg success';
-          msg.textContent = 'Compte créé ! Connectez-vous.';
-          render(); return;
-        }
         await auth.login(document.getElementById('email').value, document.getElementById('password').value);
         await enterAppAfterLogin();
       } catch (err) {

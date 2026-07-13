@@ -11,7 +11,7 @@ function updateHeaderBrand(code) {
     badge.style.display = 'flex';
     badge.innerHTML = `<img src="${p.drapeauSvg}" alt="${p.nom}" class="adh-flag-badge-img"><span>${p.nom}</span>`;
   } else {
-    logoBox.textContent = 'SD';
+    logoBox.innerHTML = '<img src="/images/logo.svg" alt="SoliDev" style="width:100%;height:100%;object-fit:cover">';
     logoBox.classList.remove('adh-logo-country');
     badge.style.display = 'none';
     badge.innerHTML = '';
@@ -69,7 +69,7 @@ router.register('adhesion', async (params = {}) => {
 
         <div class="pub-form-logo">
           <div class="pub-form-brand">
-            <div class="logo-sm" id="adhLogoBox">SD</div>
+            <div class="logo-sm" id="adhLogoBox"><img src="/images/logo.svg" alt="SoliDev" style="width:100%;height:100%;object-fit:cover"></div>
             <span>SoliDev</span>
           </div>
           <div class="adh-flag-badge" id="adhFlagBadge" style="display:none"></div>
@@ -142,6 +142,20 @@ router.register('adhesion', async (params = {}) => {
                     <input type="text" name="nom" required
                            placeholder="Ex : ${sousType==='ONG'?'ONG Espoir Africain':'Association Entraide Mali'}">
                   </div>
+                </div>
+                <div class="form-group adh-upload-group">
+                  <label>
+                    🖼️ Logo de l'organisation
+                    <span class="adh-upload-hint">(JPG, PNG, WEBP ou SVG — max 5 Mo, optionnel)</span>
+                  </label>
+                  <label class="adh-upload-zone" id="logoUploadZone">
+                    <input type="file" name="logo" id="logoInput"
+                           accept=".jpg,.jpeg,.png,.webp,.svg" onchange="previewLogoUpload(this)">
+                    <img id="logoPreviewImg" style="display:none;width:64px;height:64px;object-fit:cover;border-radius:12px;margin:0 auto 8px">
+                    <span class="adh-upload-icon" id="logoUploadIcon">🖼️</span>
+                    <span class="adh-upload-text" id="logoUploadText">Cliquez ou déposez votre logo ici</span>
+                    <span class="adh-upload-sub">Affiché sur votre profil, vos cartes et votre espace de gestion</span>
+                  </label>
                 </div>
                 <div class="form-row">
                   <div class="form-group">
@@ -560,6 +574,26 @@ router.register('adhesion', async (params = {}) => {
       const mb = (f.size / 1024 / 1024).toFixed(2);
       text.textContent = `✅ ${f.name} (${mb} Mo)`;
       zone.classList.add('has-file');
+    }
+  };
+
+  window.previewLogoUpload = function(input) {
+    const zone = document.getElementById('logoUploadZone');
+    const text = document.getElementById('logoUploadText');
+    const icon = document.getElementById('logoUploadIcon');
+    const img  = document.getElementById('logoPreviewImg');
+    if (input.files && input.files[0]) {
+      const f  = input.files[0];
+      const mb = (f.size / 1024 / 1024).toFixed(2);
+      text.textContent = `✅ ${f.name} (${mb} Mo)`;
+      zone.classList.add('has-file');
+      const reader = new FileReader();
+      reader.onload = ev => {
+        img.src = ev.target.result;
+        img.style.display = 'block';
+        icon.style.display = 'none';
+      };
+      reader.readAsDataURL(f);
     }
   };
 

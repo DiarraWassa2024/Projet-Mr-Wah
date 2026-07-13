@@ -11,14 +11,14 @@ const ACTIONS_VALIDES = [
 ];
 
 /* ── GET /api/piste-audit/stats ───────────────────────────────── */
-router.get('/stats', auth, roles('admin','gestionnaire'), (req, res) => {
+router.get('/stats', auth, roles('admin'), (req, res) => {
   try {
     ok(res, AuditRepository.stats(req.query));
   } catch(err) { serverError(res, err); }
 });
 
 /* ── GET /api/piste-audit ─────────────────────────────────────── */
-router.get('/', auth, roles('admin','gestionnaire'), async (req, res) => {
+router.get('/', auth, roles('admin'), async (req, res) => {
   try {
     ok(res, await AuditRepository.findAll(req.query));
   } catch(err) { serverError(res, err); }

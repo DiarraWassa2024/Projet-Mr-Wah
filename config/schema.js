@@ -754,6 +754,8 @@ module.exports = function initSchema() {
     // Migration des données existantes vers le nouveau cycle de vie
     `UPDATE SD_DemandeAdhesion SET statutAdhesion = 'Actif'  WHERE statut = 'Acceptée' AND statutAdhesion = 'En attente de validation'`,
     `UPDATE SD_DemandeAdhesion SET statutAdhesion = 'Refusé' WHERE statut = 'Refusée'  AND statutAdhesion = 'En attente de validation'`,
+    // GPOTB02_Adherent — lieu de naissance (affiché sur la carte d'adhérent officielle)
+    `ALTER TABLE GPOTB02_Adherent ADD COLUMN LieuNaissAdh TEXT`,
   ];
   migrations.forEach(sql => { try { db.exec(sql); } catch(_) {} });
 
@@ -1036,31 +1038,30 @@ module.exports = function initSchema() {
     }
     console.log('✅ Données pays complètes mises à jour');
   };
-  try { updatePays(); } catch(_) {}
 
   // Pays (déjà géré)
   const hasPays = db.prepare('SELECT COUNT(*) as c FROM GPOTB03_Pays').get();
   if (hasPays.c === 0) {
     db.exec(`
-      INSERT INTO GPOTB03_Pays VALUES('MDG','Madagascar',-18.766947,46.869107,'+261');
-      INSERT INTO GPOTB03_Pays VALUES('MLI','Mali',17.570692,-3.996166,'+223');
-      INSERT INTO GPOTB03_Pays VALUES('CIV','Côte d''Ivoire',7.539989,-5.547080,'+225');
-      INSERT INTO GPOTB03_Pays VALUES('BFA','Burkina Faso',12.364566,-1.535150,'+226');
-      INSERT INTO GPOTB03_Pays VALUES('BEN','Bénin',9.307690,2.315834,'+229');
-      INSERT INTO GPOTB03_Pays VALUES('NGA','Nigeria',9.081999,8.675277,'+234');
+      INSERT INTO GPOTB03_Pays (CodePays,LibPays,Latitude,Longitude,CodeIndicatif) VALUES('MDG','Madagascar',-18.766947,46.869107,'+261');
+      INSERT INTO GPOTB03_Pays (CodePays,LibPays,Latitude,Longitude,CodeIndicatif) VALUES('MLI','Mali',17.570692,-3.996166,'+223');
+      INSERT INTO GPOTB03_Pays (CodePays,LibPays,Latitude,Longitude,CodeIndicatif) VALUES('CIV','Côte d''Ivoire',7.539989,-5.547080,'+225');
+      INSERT INTO GPOTB03_Pays (CodePays,LibPays,Latitude,Longitude,CodeIndicatif) VALUES('BFA','Burkina Faso',12.364566,-1.535150,'+226');
+      INSERT INTO GPOTB03_Pays (CodePays,LibPays,Latitude,Longitude,CodeIndicatif) VALUES('BEN','Bénin',9.307690,2.315834,'+229');
+      INSERT INTO GPOTB03_Pays (CodePays,LibPays,Latitude,Longitude,CodeIndicatif) VALUES('NGA','Nigeria',9.081999,8.675277,'+234');
 
-      INSERT INTO GPOTB07_TypeOrganisation(LibTypOrg) VALUES('Association'),('ONG'),('Mutuelle');
-      INSERT INTO GPOTB09_VocationOrganisation(LibVocOrg) VALUES('Entraide'),('Développement'),('Santé'),('Éducation'),('Agriculture'),('Microfinance');
-      INSERT INTO GPOTB10_ReglementInterieur(NomRegleInt) VALUES('Règlement standard'),('Statuts loi 1901'),('Règlement coopérative');
-      INSERT INTO GPOTB11_Role(LibRole) VALUES('Président'),('Vice-Président'),('Secrétaire Général'),('Trésorier'),('Membre actif'),('Membre fondateur');
-      INSERT INTO GPOTB12_Sexe(LibSexe) VALUES('Masculin'),('Féminin'),('Autre');
-      INSERT INTO GPOTB13_MoyenPaiement(LibMoyPay) VALUES('Espèces'),('Mobile Money'),('Virement bancaire'),('Orange Money'),('Wave'),('MTN Mobile Money');
-      INSERT INTO GPOTB15_Statut(LibStatut) VALUES('Actif'),('Inactif'),('Suspendu'),('En attente'),('Clôturé');
-      INSERT INTO GPOTB17_TypePrestation(LibTypPrest) VALUES('Médicale'),('Juridique'),('Financière'),('Formation'),('Alimentaire'),('Scolaire');
-      INSERT INTO GPOTB19_PieceIdentite(LibPieceIdenti) VALUES('Carte Nationale d''Identité'),('Passeport'),('Permis de conduire'),('Acte de naissance');
-      INSERT INTO GPOTB20_SituationMatrimoniale(LibSituMat) VALUES('Célibataire'),('Marié(e)'),('Divorcé(e)'),('Veuf/Veuve'),('Union libre');
-      INSERT INTO GPOTB22_Filiation(LibFil) VALUES('Biologique'),('Adoptive'),('Légale');
-      INSERT INTO GPOTB23_TypeFiliation(LibTypFil) VALUES('Père'),('Mère'),('Enfant'),('Tuteur légal'),('Frère/Sœur');
+      INSERT OR IGNORE INTO GPOTB07_TypeOrganisation(LibTypOrg) VALUES('Association'),('ONG'),('Mutuelle');
+      INSERT OR IGNORE INTO GPOTB09_VocationOrganisation(LibVocOrg) VALUES('Entraide'),('Développement'),('Santé'),('Éducation'),('Agriculture'),('Microfinance');
+      INSERT OR IGNORE INTO GPOTB10_ReglementInterieur(NomRegleInt) VALUES('Règlement standard'),('Statuts loi 1901'),('Règlement coopérative');
+      INSERT OR IGNORE INTO GPOTB11_Role(LibRole) VALUES('Président'),('Vice-Président'),('Secrétaire Général'),('Trésorier'),('Membre actif'),('Membre fondateur');
+      INSERT OR IGNORE INTO GPOTB12_Sexe(LibSexe) VALUES('Masculin'),('Féminin'),('Autre');
+      INSERT OR IGNORE INTO GPOTB13_MoyenPaiement(LibMoyPay) VALUES('Espèces'),('Mobile Money'),('Virement bancaire'),('Orange Money'),('Wave'),('MTN Mobile Money');
+      INSERT OR IGNORE INTO GPOTB15_Statut(LibStatut) VALUES('Actif'),('Inactif'),('Suspendu'),('En attente'),('Clôturé');
+      INSERT OR IGNORE INTO GPOTB17_TypePrestation(LibTypPrest) VALUES('Médicale'),('Juridique'),('Financière'),('Formation'),('Alimentaire'),('Scolaire');
+      INSERT OR IGNORE INTO GPOTB19_PieceIdentite(LibPieceIdenti) VALUES('Carte Nationale d''Identité'),('Passeport'),('Permis de conduire'),('Acte de naissance');
+      INSERT OR IGNORE INTO GPOTB20_SituationMatrimoniale(LibSituMat) VALUES('Célibataire'),('Marié(e)'),('Divorcé(e)'),('Veuf/Veuve'),('Union libre');
+      INSERT OR IGNORE INTO GPOTB22_Filiation(LibFil) VALUES('Biologique'),('Adoptive'),('Légale');
+      INSERT OR IGNORE INTO GPOTB23_TypeFiliation(LibTypFil) VALUES('Père'),('Mère'),('Enfant'),('Tuteur légal'),('Frère/Sœur');
     `);
     console.log('✅ Données de référence initialisées');
   }
@@ -1069,12 +1070,12 @@ module.exports = function initSchema() {
   const hasDevise = db.prepare('SELECT COUNT(*) as c FROM GPOTB27_Devise').get();
   if (hasDevise.c === 0) {
     db.exec(`
-      INSERT INTO GPOTB27_Devise VALUES('XOF','Franc CFA BCEAO','F CFA',655.957,1);
-      INSERT INTO GPOTB27_Devise VALUES('XAF','Franc CFA BEAC','F CFA',655.957,1);
-      INSERT INTO GPOTB27_Devise VALUES('MGA','Ariary malgache','Ar',4800.0,1);
-      INSERT INTO GPOTB27_Devise VALUES('NGN','Naira nigérian','₦',1650.0,1);
-      INSERT INTO GPOTB27_Devise VALUES('EUR','Euro','€',1.0,1);
-      INSERT INTO GPOTB27_Devise VALUES('USD','Dollar américain','$',0.92,1);
+      INSERT OR IGNORE INTO GPOTB27_Devise VALUES('XOF','Franc CFA BCEAO','F CFA',655.957,1);
+      INSERT OR IGNORE INTO GPOTB27_Devise VALUES('XAF','Franc CFA BEAC','F CFA',655.957,1);
+      INSERT OR IGNORE INTO GPOTB27_Devise VALUES('MGA','Ariary malgache','Ar',4800.0,1);
+      INSERT OR IGNORE INTO GPOTB27_Devise VALUES('NGN','Naira nigérian','₦',1650.0,1);
+      INSERT OR IGNORE INTO GPOTB27_Devise VALUES('EUR','Euro','€',1.0,1);
+      INSERT OR IGNORE INTO GPOTB27_Devise VALUES('USD','Dollar américain','$',0.92,1);
     `);
     console.log('✅ Devises initialisées');
   }
@@ -1099,4 +1100,8 @@ module.exports = function initSchema() {
     `);
     console.log('✅ Ministères initialisés');
   }
+
+  // Enrichit les pays (langue/devise/drapeau/armoirie/ministère) — doit s'exécuter après le
+  // seed des pays ET des ministères ci-dessus (sinon rien à mettre à jour sur une base neuve).
+  try { updatePays(); } catch(_) {}
 };

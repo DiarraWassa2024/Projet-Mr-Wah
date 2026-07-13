@@ -3,8 +3,14 @@ const path      = require('path');
 const fs        = require('fs');
 const multer    = require('multer');
 const auth      = require('../middleware/auth');
+const roles     = require('../middleware/roles');
 const OrganisationRepository = require('../repositories/OrganisationRepository');
-const { ok, created, notFound, badRequest, serverError } = require('../helpers/response');
+const { ok, created, notFound, badRequest, forbidden, serverError } = require('../helpers/response');
+
+/** Un gestionnaire ne voit/modifie que sa propre organisation ; l'admin voit tout. */
+function isOwnOrg(req, numAgr) {
+  return req.user.role === 'admin' || req.user.NumAgr === numAgr;
+}
 
 // ── Multer — documents organisation ───────────────────────────
 const uploadDir = path.join(__dirname, '../public/uploads/orgs');
@@ -21,6 +27,22 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+    cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
+  },
+});
+
+// ── Multer — logo organisation ──────────────────────────────────
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename:    (req, file, cb) => {
+    cb(null, `orglogo_${Date.now()}${path.extname(file.originalname).toLowerCase()}`);
+  },
+});
+const uploadLogo = multer({
+  storage: logoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.svg'];
     cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
   },
 });
@@ -65,6 +87,10 @@ function validate(body, isCreate) {
 // ── GET /api/organisations ─────────────────────────────────────
 router.get('/', auth, async (req, res) => {
   try {
+    if (req.user.role === 'gestionnaire' || req.user.role === 'adherent') {
+      const org = req.user.NumAgr ? await OrganisationRepository.findByIdFull(req.user.NumAgr) : null;
+      return ok(res, org ? [org] : []);
+    }
     ok(res, await OrganisationRepository.findAll(req.query));
   } catch (err) { serverError(res, err); }
 });
@@ -72,6 +98,7 @@ router.get('/', auth, async (req, res) => {
 // ── GET /api/organisations/:id ─────────────────────────────────
 router.get('/:id', auth, async (req, res) => {
   try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
     const org = await OrganisationRepository.findByIdFull(req.params.id);
     if (!org) return notFound(res, 'Organisation non trouvée');
     ok(res, org);
@@ -79,7 +106,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // ── POST /api/organisations ────────────────────────────────────
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, roles('admin'), async (req, res) => {
   const errMsg = validate(req.body, true);
   if (errMsg) return badRequest(res, errMsg);
 
@@ -116,7 +143,8 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ── PUT /api/organisations/:id ─────────────────────────────────
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, roles('admin', 'gestionnaire'), async (req, res) => {
+  if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
   const errMsg = validate(req.body, false);
   if (errMsg) return badRequest(res, errMsg);
 
@@ -148,8 +176,26 @@ router.put('/:id', auth, async (req, res) => {
   } catch (err) { serverError(res, err); }
 });
 
+// ── POST /api/organisations/:id/logo ──────────────────────────
+router.post('/:id/logo', auth, roles('admin', 'gestionnaire'), uploadLogo.single('logo'), async (req, res) => {
+  if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
+  if (!req.file) return badRequest(res, 'Logo requis (jpg/png/webp/svg, max 5 Mo)');
+  try {
+    const org = await OrganisationRepository.findByIdFull(req.params.id);
+    if (!org) return notFound(res, 'Organisation non trouvée');
+
+    if (org.Logo) {
+      const fp = path.join(__dirname, '../public', org.Logo);
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    }
+    const Logo = `/uploads/orgs/${req.file.filename}`;
+    await OrganisationRepository.update(req.params.id, { Logo });
+    ok(res, { message: 'Logo mis à jour', Logo });
+  } catch (err) { serverError(res, err); }
+});
+
 // ── POST /api/organisations/:id/statut ────────────────────────
-router.post('/:id/statut', auth, async (req, res) => {
+router.post('/:id/statut', auth, roles('admin'), async (req, res) => {
   try {
     const org = await OrganisationRepository.findByIdFull(req.params.id);
     if (!org) return notFound(res, 'Organisation non trouvée');
@@ -166,12 +212,14 @@ router.post('/:id/statut', auth, async (req, res) => {
 // ── GET /api/organisations/:id/documents ──────────────────────
 router.get('/:id/documents', auth, async (req, res) => {
   try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
     ok(res, await OrganisationRepository.getDocuments(req.params.id));
   } catch (err) { serverError(res, err); }
 });
 
 // ── POST /api/organisations/:id/documents ─────────────────────
-router.post('/:id/documents', auth, upload.single('fichier'), async (req, res) => {
+router.post('/:id/documents', auth, roles('admin', 'gestionnaire'), upload.single('fichier'), async (req, res) => {
+  if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
   if (!req.file) return badRequest(res, 'Fichier requis');
   const { LibDoc, TypeDoc } = req.body;
   if (!LibDoc || !LibDoc.trim()) return badRequest(res, 'Nom du document requis');
@@ -193,7 +241,8 @@ router.post('/:id/documents', auth, upload.single('fichier'), async (req, res) =
 });
 
 // ── DELETE /api/organisations/:id/documents/:docId ───────────
-router.delete('/:id/documents/:docId', auth, async (req, res) => {
+router.delete('/:id/documents/:docId', auth, roles('admin', 'gestionnaire'), async (req, res) => {
+  if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
   try {
     const doc = await OrganisationRepository.getDocumentById(req.params.docId, req.params.id);
     if (!doc) return notFound(res, 'Document non trouvé');
@@ -206,7 +255,7 @@ router.delete('/:id/documents/:docId', auth, async (req, res) => {
 });
 
 // ── DELETE /api/organisations/:id ─────────────────────────────
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, roles('admin'), async (req, res) => {
   try {
     const org = await OrganisationRepository.findByIdFull(req.params.id);
     if (!org) return notFound(res, 'Organisation non trouvée');

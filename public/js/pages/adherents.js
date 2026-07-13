@@ -73,7 +73,7 @@ router.register('adherents', async () => {
   // ── CARTE ─────────────────────────────────────────────────────
   function ouvrirCarte(idAdh) {
     const token = localStorage.getItem('gpo_token');
-    const w = window.open('', '_blank', 'width=480,height=400');
+    const w = window.open('', '_blank', 'width=620,height=780');
     fetch(`/api/adherents/${idAdh}/carte`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.text())
       .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
@@ -284,6 +284,10 @@ router.register('adherents', async () => {
           </div>
         </div>
         <div class="form-row">
+          <div class="form-group">
+            <label>Lieu de naissance</label>
+            <input type="text" name="LieuNaissAdh" value="${adh.LieuNaissAdh || ''}" placeholder="Ex : Abidjan">
+          </div>
           <div class="form-group">
             <label>Date d'adhésion</label>
             <input type="date" name="DateAdhesion" value="${adh.DateAdhesion ? adh.DateAdhesion.split('T')[0] : new Date().toISOString().split('T')[0]}">

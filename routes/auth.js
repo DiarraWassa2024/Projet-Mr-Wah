@@ -2,26 +2,32 @@ const router      = require('express').Router();
 const auth        = require('../middleware/auth');
 const AuthService = require('../services/AuthService');
 const UserRepository = require('../repositories/UserRepository');
+const OrganisationRepository = require('../repositories/OrganisationRepository');
+const AdherentRepository     = require('../repositories/AdherentRepository');
 const AuditService   = require('../services/AuditService');
 const { authLimiter } = require('../middleware/rateLimiter');
-const { ok, created, badRequest, serverError } = require('../helpers/response');
+const { ok, badRequest, serverError } = require('../helpers/response');
 
-// POST /api/auth/register
-router.post('/register', authLimiter, async (req, res) => {
-  const { username, email, password, role } = req.body;
-  if (!username || !email || !password)
-    return badRequest(res, 'Champs obligatoires manquants');
-  const ALLOWED_ROLES = ['gestionnaire', 'adherent'];
-  const safeRole = ALLOWED_ROLES.includes(role) ? role : 'gestionnaire';
-  try {
-    const result = await AuthService.register({ username, email, password, role: safeRole });
-    created(res, { message: 'Utilisateur créé', idUser: result.insertId });
-  } catch (err) {
-    if (err.code === 'SQLITE_CONSTRAINT' || err.code === 'ER_DUP_ENTRY')
-      return res.status(409).json({ message: 'Email ou pseudo déjà utilisé' });
-    serverError(res, err);
+/**
+ * Pour un gestionnaire, joint le nom de son organisation ; pour un adhérent, joint son propre
+ * nom complet — affichés à la place de l'identifiant de connexion dans l'interface.
+ */
+async function withOrgName(publicUser) {
+  if (publicUser.role === 'gestionnaire' && publicUser.NumAgr) {
+    const org = await OrganisationRepository.findById(publicUser.NumAgr);
+    if (org) return { ...publicUser, orgName: org.LibOrg, orgLogo: org.Logo || null };
   }
-});
+  if (publicUser.role === 'adherent' && publicUser.idAdh) {
+    const adh = await AdherentRepository.findById(publicUser.idAdh);
+    if (adh) return { ...publicUser, adherentName: [adh.PrenAdh, adh.NomAdh].filter(Boolean).join(' ') };
+  }
+  return publicUser;
+}
+
+// Remarque : il n'y a volontairement aucune route POST /register — la création de compte
+// (adhérent ou organisation) passe exclusivement par le parcours d'adhésion (validation +
+// paiement de la cotisation), qui génère et envoie les identifiants par email. Un utilisateur
+// ne peut donc jamais créer un compte de connexion directement sans passer par ce parcours.
 
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req, res) => {
@@ -46,7 +52,7 @@ router.post('/login', authLimiter, async (req, res) => {
       module:  'Authentification',
       details: `Connexion réussie`,
     }).catch(() => {});
-    ok(res, { token, user: AuthService.publicUser(user) });
+    ok(res, { token, user: await withOrgName(AuthService.publicUser(user)) });
   } catch (err) { serverError(res, err); }
 });
 
@@ -63,7 +69,7 @@ router.post('/logout', auth, async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const user = await UserRepository.findById(req.user.idUser);
-    ok(res, user);
+    ok(res, await withOrgName(user));
   } catch (err) { serverError(res, err); }
 });
 

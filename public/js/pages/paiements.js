@@ -580,7 +580,10 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:30px;col
 <div class="recu">
   <div class="recu-hdr">
     <div>
-      <h1>💳 REÇU DE PAIEMENT</h1>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <img src="/images/logo.svg" alt="SoliDev" style="width:32px;height:32px;border-radius:9px">
+        <h1 style="margin:0">REÇU DE PAIEMENT</h1>
+      </div>
       <div class="sub">SoliDev – Plateforme Panafricaine des Associations</div>
       <div class="sub" style="margin-top:8px">Émis le ${fmt(new Date().toISOString())}</div>
     </div>

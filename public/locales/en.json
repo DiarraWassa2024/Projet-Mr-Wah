@@ -1,5 +1,5 @@
 {
-  "appName": "GPO – Association Management",
+  "appName": "SoliDev – Association Management",
   "welcome": "Welcome",
   "selectCountry": "Select your country",
   "selectLanguage": "Choose your language",
@@ -12,6 +12,7 @@
   "username": "Username",
   "dashboard": "Dashboard",
   "organisations": "Organizations",
+  "mon-organisation": "My organization",
   "adherents": "Members",
   "beneficiaires": "Beneficiaries",
   "paiements": "Payments",

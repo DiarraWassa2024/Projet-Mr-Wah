@@ -10,11 +10,6 @@ const SECRET  = () => process.env.JWT_SECRET || 'gpo_secret';
 const EXPIRES = () => process.env.JWT_EXPIRES_IN || '24h';
 
 const AuthService = {
-  async register({ username, email, password, role = 'gestionnaire' }) {
-    const hash = await bcrypt.hash(password, 10);
-    return UserRepository.create({ username, email, passwordHash: hash, role, isActive: 1 });
-  },
-
   async login(identifiant, password) {
     const user = await UserRepository.findByLogin(identifiant);
     if (!user) return null;
