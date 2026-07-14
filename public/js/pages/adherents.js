@@ -642,7 +642,8 @@ router.register('adherents', async () => {
                 <td class="actions">
                   <button class="btn-icon edit" data-id="${a.idAdh}" title="Modifier">✏️</button>
                   <button class="btn-icon carte" data-id="${a.idAdh}" title="Carte adhérent">🪪</button>
-                  <button class="btn-icon del"  data-id="${a.idAdh}" title="Supprimer">🗑️</button>
+                  <button class="btn-icon del"  data-id="${a.idAdh}" title="${[3,5].includes(a.IdStatut) ? 'Supprimer définitivement' : 'Seul un adhérent suspendu ou clôturé peut être supprimé'}"
+                          ${[3,5].includes(a.IdStatut) ? '' : 'disabled style="opacity:.35"'}>🗑️</button>
                 </td>
               </tr>`).join('')
             : `<tr><td colspan="7" class="text-center" style="padding:48px;color:#9ca3af">Aucun adhérent trouvé</td></tr>`}
@@ -669,7 +670,7 @@ router.register('adherents', async () => {
     });
     document.querySelectorAll('.btn-icon.del').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm('Supprimer cet adhérent ?')) return;
+        if (!confirm('Supprimer DÉFINITIVEMENT cet adhérent et toutes ses données (paiements, bénéficiaires, compte de connexion...) ? Cette action est irréversible.')) return;
         try { await api.delete(`/adherents/${btn.dataset.id}`); toast('Adhérent supprimé'); render(); }
         catch (err) { toast(err.message, 'error'); }
       });

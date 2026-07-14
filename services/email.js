@@ -1,7 +1,35 @@
 const nodemailer = require('nodemailer');
+const db = require('../config/database');
 
-/* ── Transporter (singleton) ─────────────────────────── */
-const transporter = process.env.SMTP_HOST
+/* ── Transporteurs ─────────────────────────────────────────────────
+   Resend (service transactionnel, bien plus fiable qu'un relais SMTP personnel —
+   notamment vers iCloud/Outlook, qui filtrent sévèrement Gmail relayé) est tenté en
+   premier s'il est configuré ; en cas d'échec (ex. domaine pas encore vérifié chez
+   Resend, qui restreint alors l'envoi au seul propriétaire du compte), on retombe
+   automatiquement sur SMTP (Gmail...) pour ne jamais régresser par rapport à l'existant. */
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+async function sendViaResend(opts) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: opts.from || process.env.RESEND_FROM || 'SoliDev <onboarding@resend.dev>',
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `Resend a répondu ${res.status}`);
+  return { messageId: data.id, response: `Resend OK (id: ${data.id})` };
+}
+
+const fallbackTransporter = process.env.SMTP_HOST
   ? nodemailer.createTransport({
       host:   process.env.SMTP_HOST,
       port:   parseInt(process.env.SMTP_PORT || '587'),
@@ -58,7 +86,7 @@ function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnn
   const aDesIdentifiants = !!(username && password);
 
   const credBlock = aDesIdentifiants ? `
-      <p>Voici vos identifiants de connexion :</p>
+      <p>Voici vos identifiants de connexion, valables dès maintenant et à tout moment par la suite :</p>
       <div class="highlight">
         Identifiant : <strong style="font-family:monospace">${username}</strong><br>
         Mot de passe : <strong style="font-family:monospace">${password}</strong>
@@ -67,7 +95,7 @@ function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnn
         ⚠️ Ce mot de passe ne sera communiqué qu'une seule fois. Conservez-le en lieu sûr et changez-le dès votre première connexion.
       </p>` : `
       <div class="highlight">
-        Un compte SoliDev existe déjà pour cet email — connectez-vous avec vos identifiants habituels.
+        Aucune adresse email n'était disponible pour créer votre accès — contactez l'administrateur.
       </div>`;
 
   const html = wrapHtml(`
@@ -100,7 +128,7 @@ function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnn
     + `Votre demande d'adhésion pour "${demande.nomOrg}" a été ACCEPTÉE.\n\n`
     + (aDesIdentifiants
         ? `Identifiant : ${username}\nMot de passe : ${password}\n\n`
-        : `Un compte existe déjà pour cet email — connectez-vous avec vos identifiants habituels.\n\n`)
+        : `Aucune adresse email n'était disponible pour créer votre accès — contactez l'administrateur.\n\n`)
     + (dejaPayee
         ? `Votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) a déjà été réglée à l'inscription — votre compte est immédiatement actif.\n\n`
         : `Une fois connecté(e), réglez votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) pour activer pleinement votre compte.\n\n`)
@@ -162,14 +190,44 @@ function emailNouvelleDemande(demande) {
 }
 
 /* ── sendMail helper ─────────────────────────────────── */
+// Journalise chaque envoi dans SD_EmailLog (destinataire, statut, réponse SMTP brute, erreur) —
+// un envoi "réussi" ne veut dire que le serveur SMTP a accepté le message pour relais : ça ne
+// garantit pas la livraison réelle dans la boîte du destinataire (spam, rejet silencieux plus
+// loin dans la chaîne restent invisibles depuis ce point).
 async function sendMail(opts) {
+  const { idAdh, ...mailOpts } = opts;
+  const now = new Date().toISOString().replace('T', ' ').split('.')[0];
   try {
-    const info = await transporter.sendMail(opts);
-    return { ok: true, messageId: info.messageId };
+    let info;
+    if (RESEND_API_KEY) {
+      try {
+        info = await sendViaResend(mailOpts);
+      } catch (resendErr) {
+        console.error('Resend a échoué, repli sur SMTP/console:', resendErr.message);
+        info = await fallbackTransporter.sendMail(mailOpts);
+        info.response = `[Repli après échec Resend: ${resendErr.message}] ${info.response || ''}`.trim();
+      }
+    } else {
+      info = await fallbackTransporter.sendMail(mailOpts);
+    }
+    const reponseSMTP = info.response || null;
+    await logEmail(mailOpts, 'envoyé', null, reponseSMTP, now, idAdh);
+    return { ok: true, messageId: info.messageId, response: reponseSMTP };
   } catch (err) {
     console.error('Email error:', err.message);
+    await logEmail(mailOpts, 'échec', err.message, null, now, idAdh);
     return { ok: false, error: err.message };
   }
+}
+
+async function logEmail(mailOpts, statut, erreur, reponseSMTP, dateEnvoi, idAdh) {
+  try {
+    await db.execute(
+      `INSERT INTO SD_EmailLog (destinataire, sujet, corps, dateEnvoi, statut, erreur, reponseSMTP, idAdh)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [mailOpts.to, mailOpts.subject, mailOpts.html || mailOpts.text || null, dateEnvoi, statut, erreur, reponseSMTP, idAdh || null]
+    );
+  } catch (e) { console.error('Log email échoué:', e.message); }
 }
 
 module.exports = { sendMail, emailAccepteeAvecIdentifiants, emailRefusee, emailNouvelleDemande };

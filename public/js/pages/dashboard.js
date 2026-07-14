@@ -164,6 +164,7 @@ router.register('dashboard', async () => {
       { label:'Bénéficiaires',  val:stats.beneficiaires||0,       icon:'🤝', col:'green',  sub:'personnes aidées' },
       { label:'Paiements',      val:paiementsVal,                 icon:'💰', col:'amber',  sub:paiementsSub, isCur:!multiDevise, curUnit:paiementsUnit },
       { label:'Dons reçus',     val:stats.donsTotal||0,           icon:'🎁', col:'pink',   sub:'FCFA de dons',     isCur:true },
+      { label:'Commission plateforme', val:stats.donsCommission||0, icon:'💼', col:'gold', sub:'reçue sur les dons', isCur:true },
       { label:'Prestations',    val:stats.prestations||0,         icon:'🛠️', col:'orange', sub:'services fournis' },
       { label:'Opportunités',   val:stats.opportunitesActives||0, icon:'🌟', col:'teal',   sub:'actives', nav:'opportunites' },
       { label:'Événements',     val:stats.evenements||0,          icon:'📅', col:'indigo', sub:'organisés', nav:'evenements' },
@@ -240,7 +241,7 @@ router.register('dashboard', async () => {
         <div class="don-icon">🎁</div>
         <div class="don-info">
           <div class="don-name">${d.anonyme ? 'Donateur anonyme' : (d.nom||'Donateur')}</div>
-          <div class="don-cause">${d.cause||d.message||'Don général'}</div>
+          <div class="don-cause">${d.orgLibOrg ? `→ ${d.orgLibOrg}` : (d.message||'Don général — SoliDev')}</div>
         </div>
         <div class="don-right">
           <div class="don-amount">${fmt(d.montant)} <small>FCFA</small></div>
@@ -544,19 +545,20 @@ async function renderGestionnaireDashboard(app, user) {
   async function load() {
     app.innerHTML = `<div class="dash-loading"><div class="dash-spinner"></div></div>`;
     try {
-      const [org, demStats, pendingDemandes, opportunites] = await Promise.all([
+      const [org, demStats, pendingDemandes, opportunites, donsData] = await Promise.all([
         user.NumAgr ? api.get(`/organisations/${user.NumAgr}`) : Promise.resolve(null),
         api.get('/demandes/stats').catch(() => ({ pending: 0, total: 0, actif: 0 })),
         api.get('/demandes?statut=' + encodeURIComponent('En attente de validation')).catch(() => []),
         api.get('/opportunites?statut=Active').catch(() => []),
+        api.get('/dons').catch(() => ({ dons: [], total: 0, totalOrg: 0 })),
       ]);
-      render(org, demStats, pendingDemandes, opportunites);
+      render(org, demStats, pendingDemandes, opportunites, donsData);
     } catch (err) {
       app.innerHTML = `<div class="msg error">${err.message}</div>`;
     }
   }
 
-  function render(org, demStats, pendingDemandes, opportunites) {
+  function render(org, demStats, pendingDemandes, opportunites, donsData) {
     const statut = org ? (STATUT_BADGE[org.IdStatut] || { label: org.LibStatut || '—', color: '#6b7280', bg: '#f3f4f6' }) : null;
 
     const demandeRows = (pendingDemandes || []).map((d, i) => `
@@ -592,6 +594,19 @@ async function renderGestionnaireDashboard(app, user) {
         </div>
       </div>`).join('') || '<p class="dt-empty" style="padding:16px 20px">Aucune opportunité active pour le moment.</p>';
 
+    const donRows = (donsData?.dons || []).slice(0, 6).map((d, i) => `
+      <div class="don-item" style="animation-delay:${i*40}ms">
+        <div class="don-icon">🎁</div>
+        <div class="don-info">
+          <div class="don-name">${d.anonyme ? 'Donateur anonyme' : (d.nom||'Donateur')}</div>
+          <div class="don-cause">${d.message || 'Don reçu'} · commission plateforme ${d.tauxCommission}%</div>
+        </div>
+        <div class="don-right">
+          <div class="don-amount">${Number(d.montantOrg||0).toLocaleString('fr-FR')} <small>FCFA net</small></div>
+          <div class="don-date">${fmtDate(d.dateDon)}</div>
+        </div>
+      </div>`).join('') || '<p class="dt-empty" style="padding:16px 20px">Aucun don reçu pour le moment.</p>';
+
     app.innerHTML = `
       <div class="dash-welcome">
         <div>
@@ -604,12 +619,13 @@ async function renderGestionnaireDashboard(app, user) {
         </div>
       </div>
 
-      <div class="dk-grid dk-grid-5">
+      <div class="dk-grid dk-grid-6">
         <div class="dk-card dk-green"><div class="dk-header"><div class="dk-icon dk-igreen">👥</div></div><div class="dk-value">${org?.nbAdherents||0}</div><div class="dk-label">Adhérents</div><div class="dk-sub">membres de mon organisation</div></div>
         <div class="dk-card dk-amber"><div class="dk-header"><div class="dk-icon dk-iamber">🤝</div></div><div class="dk-value">${org?.nbBeneficiaires||0}</div><div class="dk-label">Bénéficiaires</div><div class="dk-sub">personnes aidées</div></div>
         <div class="dk-card dk-rose" style="cursor:pointer" onclick="nav('demandes')"><div class="dk-header"><div class="dk-icon dk-irose">📨</div>${demStats.pending>0?'<div class="dk-alert-dot"></div>':''}</div><div class="dk-value">${demStats.pending||0}</div><div class="dk-label">Demandes en attente</div><div class="dk-sub">à traiter</div></div>
         <div class="dk-card dk-teal" style="cursor:pointer" onclick="nav('opportunites')"><div class="dk-header"><div class="dk-icon dk-iteal">🌟</div></div><div class="dk-value">${(opportunites||[]).length}</div><div class="dk-label">Opportunités</div><div class="dk-sub">actives</div></div>
         <div class="dk-card dk-blue" style="cursor:pointer" onclick="nav('paiements')"><div class="dk-header"><div class="dk-icon dk-iblue">💰</div></div><div class="dk-value">${demStats.actif||0}</div><div class="dk-label">Adhésions actives</div><div class="dk-sub">total accepté</div></div>
+        <div class="dk-card dk-pink"><div class="dk-header"><div class="dk-icon dk-ipink">🎁</div></div><div class="dk-value">${Number(donsData?.totalOrg||0).toLocaleString('fr-FR')}</div><div class="dk-label">Dons reçus (net)</div><div class="dk-sub">${donsData?.total||0} don${(donsData?.total||0)!==1?'s':''} au total</div></div>
       </div>
 
       <div class="dash-section-hd">
@@ -630,6 +646,18 @@ async function renderGestionnaireDashboard(app, user) {
           <button class="dp-btn" onclick="nav('opportunites')">Voir tout →</button>
         </div>
         <div class="opp-list" style="padding:0 4px 12px">${oppRows}</div>
+      </div>
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
+        <div class="dsh-title">🎁 Dons reçus par mon organisation</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full">
+        <div class="dp-head">
+          <div><div class="dp-title">Derniers dons</div><div class="dp-sub">Montant net après commission plateforme (${(donsData?.dons||[])[0]?.tauxCommission ?? 20}%)</div></div>
+        </div>
+        <div class="don-list" style="padding:0 4px 12px">${donRows}</div>
       </div>`;
   }
 
@@ -682,20 +710,21 @@ async function renderAdherentDashboard(app, user) {
 
   app.innerHTML = `<div class="dash-loading"><div class="dash-spinner"></div></div>`;
   try {
-    const [adhRows, orgRows, paiements, beneficiaires] = await Promise.all([
+    const [adhRows, orgRows, paiements, beneficiaires, dettes] = await Promise.all([
       api.get('/adherents').catch(() => []),
       api.get('/organisations').catch(() => []),
       api.get('/paiements').catch(() => []),
       api.get('/beneficiaires').catch(() => []),
+      api.get('/dettes').catch(() => []),
     ]);
     const adh = adhRows[0] || null;
     const org = orgRows[0] || null;
-    render(adh, org, paiements, beneficiaires);
+    render(adh, org, paiements, beneficiaires, dettes);
   } catch (err) {
     app.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
 
-  function render(adh, org, paiements, beneficiaires) {
+  function render(adh, org, paiements, beneficiaires, dettes) {
     const statut = adh ? (STATUT_BADGE[adh.IdStatut] || { label: '—', color: '#6b7280', bg: '#f3f4f6' }) : null;
     const nomComplet = adh ? [adh.PrenAdh, adh.NomAdh].filter(Boolean).join(' ') : user.username;
     const totalPaye = (paiements||[]).filter(p => p.Statut === 'Payé' || p.Statut === 'Validé')
@@ -714,14 +743,31 @@ async function renderAdherentDashboard(app, user) {
           return `<span class="pay-st-badge" style="background:${c.bg};color:${c.color}">${c.icon} ${p.Statut||'—'}</span>`; })()}</td>
       </tr>`).join('') || `<tr><td colspan="5" class="dt-empty">Aucun paiement enregistré</td></tr>`;
 
+    const detteRows = (dettes||[]).map((d,i) => {
+      const statutAffiche = d.enRetard ? 'En retard' : d.statut;
+      const c = statutAffiche === 'Réglée' ? { bg:'#ecfdf5', color:'#059669', icon:'✅' }
+              : statutAffiche === 'En retard' ? { bg:'#fef2f2', color:'#dc2626', icon:'⚠️' }
+              : { bg:'#fffbeb', color:'#d97706', icon:'⏳' };
+      return `
+      <tr style="animation-delay:${i*30}ms">
+        <td>${d.motif || 'Dette'}</td>
+        <td><span class="dt-amount">${fmt(d.montantRestant)}<small> / ${fmt(d.montantDette)}</small></span></td>
+        <td>${d.dateEcheance ? fmtDate(d.dateEcheance) : '—'}</td>
+        <td><span class="pay-st-badge" style="background:${c.bg};color:${c.color}">${c.icon} ${statutAffiche}</span></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="4" class="dt-empty">Aucune dette en cours</td></tr>`;
+
+    window._monAdhId = adh?.idAdh || null;
+    window._mesBeneficiaires = beneficiaires || [];
+
     const benefRows = (beneficiaires||[]).map((b,i) => `
-      <div class="ra-item" style="animation-delay:${i*40}ms">
+      <div class="ra-item" style="animation-delay:${i*40}ms;cursor:pointer" onclick="voirBeneficiaire(${b.idBenef})">
         <div class="ra-avatar">${(b.PrenomBenef||b.NomBenef||'?').charAt(0).toUpperCase()}</div>
         <div class="ra-info">
           <div class="ra-name">${b.PrenomBenef||''} ${b.NomBenef||'—'}</div>
           <div class="ra-org">${b.LienParente||'Bénéficiaire'}${b.TelBenef ? ' · ☎️ '+b.TelBenef : ''}${b.EmailBenef ? ' · ✉️ '+b.EmailBenef : ''}</div>
         </div>
-        <button class="dp-btn" onclick="ouvrirCarteBenef(${b.idBenef})">🪪 Carte</button>
+        <button class="dp-btn" onclick="event.stopPropagation();ouvrirCarteBenef(${b.idBenef})">🪪 Carte</button>
       </div>`).join('') || '<p class="dt-empty" style="padding:16px 20px">Aucun bénéficiaire enregistré</p>';
 
     app.innerHTML = `
@@ -799,10 +845,28 @@ async function renderAdherentDashboard(app, user) {
 
       <div class="dash-section-hd">
         <div class="dsh-line"></div>
+        <div class="dsh-title">💳 Mes dettes</div>
+        <div class="dsh-line"></div>
+      </div>
+      <div class="dash-panel dash-full" style="margin-bottom:20px">
+        <div class="dt-wrap">
+          <table class="dt-table">
+            <thead><tr><th>Motif</th><th>Restant dû</th><th>Échéance</th><th>Statut</th></tr></thead>
+            <tbody>${detteRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dash-section-hd">
+        <div class="dsh-line"></div>
         <div class="dsh-title">🤝 Mes bénéficiaires</div>
         <div class="dsh-line"></div>
       </div>
       <div class="dash-panel dash-full">
+        <div class="dp-head">
+          <div><div class="dp-title">Personnes à ma charge</div><div class="dp-sub">Cliquez sur un bénéficiaire pour voir ses informations</div></div>
+          ${adh ? `<button class="dp-btn" onclick="ouvrirAjoutBeneficiaire()">+ Ajouter un bénéficiaire</button>` : ''}
+        </div>
         <div class="ra-list">${benefRows}</div>
       </div>`;
   }
@@ -825,4 +889,150 @@ function ouvrirCarteBenef(idBenef) {
     .then(r => r.text())
     .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
     .catch(() => { w.close(); showToast('Erreur lors de la génération de la carte', 'error'); });
+}
+
+/* ── Fiche détaillée d'un bénéficiaire (tableau de bord adhérent) ────── */
+const BENEF_LIENS      = ['Conjoint(e)', 'Enfant', 'Parent', 'Frère/Sœur', 'Grand-parent', 'Petit-enfant', 'Autre'];
+const BENEF_PAYS_CODES = ['BEN','BFA','CIV','MDG','MLI','NGA'];
+
+function voirBeneficiaire(idBenef) {
+  const b = (window._mesBeneficiaires || []).find(x => x.idBenef === idBenef);
+  if (!b) return;
+  const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' }) : '—';
+  const row = (label, val) => `<div class="dem-info-item"><span>${label}</span><strong>${val || '—'}</strong></div>`;
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="benefDetailModal">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h3>🤝 ${b.PrenomBenef||''} ${b.NomBenef||''}</h3>
+          <button class="modal-close" id="closeBenefDetailModal">×</button>
+        </div>
+        <div style="padding:20px">
+          <div class="dem-info-grid">
+            ${row('Lien de parenté', b.LienParente)}
+            ${row('Date de naissance', fmtDate(b.DateNaissBenef))}
+            ${row('Téléphone', b.TelBenef)}
+            ${row('Email', b.EmailBenef)}
+            ${row('N° CNI / Passeport', b.NumCNI)}
+            ${row('Nationalité', b.Nationalite)}
+            ${row('N° bénéficiaire', b.NumBenef)}
+          </div>
+          ${b.Observations ? `<p style="margin-top:14px;color:#475569;font-size:13px;line-height:1.6">${b.Observations}</p>` : ''}
+          <div class="form-actions" style="margin-top:16px">
+            <button class="btn btn-secondary" id="cancelBenefDetailModal">Fermer</button>
+            <button class="btn btn-primary" onclick="ouvrirCarteBenef(${b.idBenef})">🪪 Voir la carte</button>
+          </div>
+        </div>
+      </div>
+    </div>`);
+  const close = () => document.getElementById('benefDetailModal')?.remove();
+  document.getElementById('closeBenefDetailModal').onclick = close;
+  document.getElementById('cancelBenefDetailModal').onclick = close;
+}
+
+function ouvrirAjoutBeneficiaire() {
+  const idAdh = window._monAdhId;
+  if (!idAdh) { showToast('Profil adhérent introuvable', 'error'); return; }
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="addBenefModal">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h3>+ Ajouter un bénéficiaire</h3>
+          <button class="modal-close" id="closeAddBenefModal">×</button>
+        </div>
+        <div style="padding:20px">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" id="abNom" required minlength="2" maxlength="100">
+            </div>
+            <div class="form-group">
+              <label>Prénom(s)</label>
+              <input type="text" id="abPrenom">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Lien de parenté</label>
+              <select id="abLien">
+                ${BENEF_LIENS.map(l => `<option value="${l}">${l}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date de naissance</label>
+              <input type="date" id="abDateNaiss" max="${new Date().toISOString().split('T')[0]}">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Téléphone</label>
+              <input type="text" id="abTel">
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" id="abEmail">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>N° CNI / Passeport</label>
+              <input type="text" id="abCni">
+            </div>
+            <div class="form-group">
+              <label>Pays</label>
+              <select id="abPays">
+                <option value="">—</option>
+                ${BENEF_PAYS_CODES.map(c => `<option value="${c}">${c}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Photo (optionnel)</label>
+            <input type="file" id="abPhoto" accept=".jpg,.jpeg,.png,.webp">
+          </div>
+          <div class="form-group">
+            <label>Observations</label>
+            <textarea id="abObs" rows="2"></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" id="cancelAddBenefModal">Annuler</button>
+            <button class="btn btn-primary" id="saveAddBenefModal">Ajouter</button>
+          </div>
+        </div>
+      </div>
+    </div>`);
+
+  const close = () => document.getElementById('addBenefModal')?.remove();
+  document.getElementById('closeAddBenefModal').onclick  = close;
+  document.getElementById('cancelAddBenefModal').onclick = close;
+  document.getElementById('saveAddBenefModal').onclick = async () => {
+    const nom = document.getElementById('abNom').value.trim();
+    if (!nom || nom.length < 2) { showToast('Le nom est obligatoire (2 caractères min.)', 'error'); return; }
+
+    const fd = new FormData();
+    fd.append('idAdh', idAdh);
+    fd.append('NomBenef', nom);
+    fd.append('PrenomBenef', document.getElementById('abPrenom').value.trim());
+    fd.append('LienParente', document.getElementById('abLien').value);
+    fd.append('DateNaissBenef', document.getElementById('abDateNaiss').value);
+    fd.append('TelBenef', document.getElementById('abTel').value.trim());
+    fd.append('EmailBenef', document.getElementById('abEmail').value.trim());
+    fd.append('NumCNI', document.getElementById('abCni').value.trim());
+    fd.append('CodePays', document.getElementById('abPays').value);
+    fd.append('Observations', document.getElementById('abObs').value.trim());
+    const photo = document.getElementById('abPhoto').files[0];
+    if (photo) fd.append('photo', photo);
+
+    try {
+      const token = localStorage.getItem('gpo_token');
+      const res  = await fetch('/api/beneficiaires', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Erreur');
+      showToast('Bénéficiaire ajouté', 'success');
+      close();
+      router.navigate('dashboard');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
 }

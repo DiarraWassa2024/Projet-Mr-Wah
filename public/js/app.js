@@ -81,6 +81,11 @@ function showShell() {
 
   const isGestionnaire = user.role === 'gestionnaire';
   const isAdherent = user.role === 'adherent';
+
+  // Couleur propre à chaque interface (admin/organisation/adhérent) — voir style.css
+  // (body.role-gestionnaire / body.role-adherent, --primary et accents de sidebar).
+  document.body.classList.remove('role-admin', 'role-gestionnaire', 'role-adherent');
+  document.body.classList.add(isGestionnaire ? 'role-gestionnaire' : isAdherent ? 'role-adherent' : 'role-admin');
   const displayName = isGestionnaire ? (user.orgName || user.username)
                      : isAdherent    ? (user.adherentName || user.username)
                      : user.username;
@@ -110,6 +115,18 @@ function showShell() {
               <span class="sb-icon si-orange">💰</span>
               <span>Paiements</span>
             </a>
+            <a class="sb-item" data-route="remboursements" href="#" onclick="nav('remboursements')">
+              <span class="sb-icon si-red">↩️</span>
+              <span>Remboursements</span>
+            </a>
+            <a class="sb-item" data-route="dettes" href="#" onclick="nav('dettes')">
+              <span class="sb-icon si-amber">💳</span>
+              <span>Dettes des membres</span>
+            </a>
+            <a class="sb-item" data-route="contenu" href="#" onclick="nav('contenu')">
+              <span class="sb-icon si-teal">📰</span>
+              <span>Mes actualités</span>
+            </a>
             <a class="sb-item" data-route="opportunites" href="#" onclick="nav('opportunites')">
               <span class="sb-icon si-lime">🔍</span>
               <span>Recherche des opportunités</span>
@@ -129,6 +146,10 @@ function showShell() {
             <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
               <span class="sb-icon si-orange">💰</span>
               <span>Mes paiements</span>
+            </a>
+            <a class="sb-item" data-route="remboursements" href="#" onclick="nav('remboursements')">
+              <span class="sb-icon si-red">↩️</span>
+              <span>Mes remboursements</span>
             </a>
           </div>`;
 
@@ -207,6 +228,14 @@ function showShell() {
               <span class="sb-icon si-orange">💰</span>
               <span>Paiements</span>
             </a>
+            <a class="sb-item" data-route="remboursements" href="#" onclick="nav('remboursements')">
+              <span class="sb-icon si-red">↩️</span>
+              <span>Remboursements</span>
+            </a>
+            <a class="sb-item" data-route="dettes" href="#" onclick="nav('dettes')">
+              <span class="sb-icon si-amber">💳</span>
+              <span>Dettes</span>
+            </a>
             <a class="sb-item" data-route="evenements" href="#" onclick="nav('evenements')">
               <span class="sb-icon si-teal">📅</span>
               <span>Événements</span>
@@ -239,6 +268,10 @@ function showShell() {
             <a class="sb-item" data-route="impressions" href="#" onclick="nav('impressions')">
               <span class="sb-icon si-violet">🖨️</span>
               <span>Impressions</span>
+            </a>
+            <a class="sb-item" data-route="contenu" href="#" onclick="nav('contenu')">
+              <span class="sb-icon si-teal">📰</span>
+              <span>Contenu</span>
             </a>
             <a class="sb-item" data-route="db-admin" href="#" onclick="nav('db-admin')">
               <span class="sb-icon si-slate">🗄️</span>
@@ -289,6 +322,21 @@ function showShell() {
             <span class="tb-date" id="tbDate">${new Date().toLocaleDateString(i18n.current(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
           </div>
           <div class="tb-right">
+            <!-- Notifications -->
+            <div class="notif-menu" id="notifMenu">
+              <button class="notif-menu-btn" onclick="toggleNotifMenu(event)" title="Notifications">
+                🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span>
+              </button>
+              <div class="notif-dropdown" id="notifDropdown">
+                <div class="notif-dropdown-hd">
+                  <span>Notifications</span>
+                  <button class="notif-mark-all" onclick="marquerToutesNotifsLues()">Tout marquer lu</button>
+                </div>
+                <div class="notif-list" id="notifList">
+                  <div class="notif-empty">Chargement…</div>
+                </div>
+              </div>
+            </div>
             <!-- Lang menu -->
             <div class="lang-menu" id="langMenu">
               <button class="lang-menu-btn" onclick="toggleLangMenu(event)">
@@ -340,6 +388,11 @@ function showShell() {
 
   // Pending demandes badge
   updatePendingBadge();
+
+  // Notifications internes — chargement immédiat + rafraîchissement périodique
+  refreshNotifications();
+  if (_notifPoll) clearInterval(_notifPoll);
+  _notifPoll = setInterval(refreshNotifications, 60000);
 }
 
 async function updatePendingBadge() {
@@ -405,6 +458,7 @@ async function switchLang(lang) {
 function toggleUserMenu(e) {
   e.stopPropagation();
   closeLangMenu();
+  closeNotifMenu();
   document.getElementById('userMenu').classList.toggle('open');
 }
 
@@ -415,6 +469,7 @@ function closeUserMenu() {
 function toggleLangMenu(e) {
   e.stopPropagation();
   closeUserMenu();
+  closeNotifMenu();
   document.getElementById('langMenu')?.classList.toggle('open');
 }
 
@@ -422,8 +477,61 @@ function closeLangMenu() {
   document.getElementById('langMenu')?.classList.remove('open');
 }
 
+/* ── Notifications internes ──────────────────────────────────── */
+function toggleNotifMenu(e) {
+  e.stopPropagation();
+  closeUserMenu();
+  closeLangMenu();
+  document.getElementById('notifMenu')?.classList.toggle('open');
+}
+
+function closeNotifMenu() {
+  document.getElementById('notifMenu')?.classList.remove('open');
+}
+
+function fmtNotifDate(d) {
+  const diffMin = Math.round((Date.now() - new Date(d).getTime()) / 60000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  if (diffMin < 1440) return `il y a ${Math.round(diffMin / 60)} h`;
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+}
+
+async function refreshNotifications() {
+  const badge = document.getElementById('notifBadge');
+  const list  = document.getElementById('notifList');
+  if (!badge || !list) return;
+  try {
+    const data = await api.get('/notifications');
+    if (data.nonLu > 0) { badge.style.display = ''; badge.textContent = data.nonLu > 9 ? '9+' : data.nonLu; }
+    else badge.style.display = 'none';
+
+    list.innerHTML = (data.notifications || []).map(n => `
+      <div class="notif-item${n.lu ? '' : ' notif-unread'}" onclick="ouvrirNotif(${n.idNotification}, ${n.lien ? `'${n.lien}'` : 'null'})">
+        <div class="notif-item-titre">${n.titre}</div>
+        ${n.contenu ? `<div class="notif-item-contenu">${n.contenu}</div>` : ''}
+        <div class="notif-item-date">${fmtNotifDate(n.dateEnvoi)}</div>
+      </div>`).join('') || `<div class="notif-empty">Aucune notification</div>`;
+  } catch (_) { /* utilisateur non connecté ou route indisponible — silencieux */ }
+}
+
+async function ouvrirNotif(id, lien) {
+  try { await api.put(`/notifications/${id}/lu`); } catch (_) {}
+  closeNotifMenu();
+  refreshNotifications();
+  if (lien) nav(lien.replace(/^\//, ''));
+}
+
+async function marquerToutesNotifsLues() {
+  try { await api.put('/notifications/lu-tout'); } catch (_) {}
+  refreshNotifications();
+}
+
+let _notifPoll = null;
+
 document.addEventListener('click', () => {
   closeUserMenu();
+  closeNotifMenu();
   document.querySelectorAll('.lang-menu.open').forEach(el => el.classList.remove('open'));
 });
 

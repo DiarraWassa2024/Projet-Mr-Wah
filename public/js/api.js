@@ -5,11 +5,15 @@ const api = (() => {
 
   async function req(method, path, body) {
     const headers = { 'Content-Type': 'application/json' };
-    if (token()) headers['Authorization'] = 'Bearer ' + token();
+    const hadToken = !!token();
+    if (hadToken) headers['Authorization'] = 'Bearer ' + token();
     const opts = { method, headers, signal: AbortSignal.timeout(15000) };
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(BASE + path, opts);
-    if (res.status === 401) {
+    // Un 401 ne signifie "session expirée" que s'il y avait un token envoyé — sinon (ex: un
+    // essai de connexion avec de mauvais identifiants) ce n'est qu'une erreur normale à afficher,
+    // pas une déconnexion/redirection vers l'accueil.
+    if (res.status === 401 && hadToken) {
       auth.logout();
       throw new Error('Session expirée — veuillez vous reconnecter');
     }

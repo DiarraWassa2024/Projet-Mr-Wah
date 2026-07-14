@@ -32,7 +32,7 @@ const router = (() => {
   }
 
   function navigate(name, params = {}, options = {}) {
-    const publicRoutes = ['login','landing','adhesion','expression-besoins','don','paiement-adhesion','verification'];
+    const publicRoutes = ['login','landing','adhesion','expression-besoins','don','paiement-adhesion','verification','verifier-adherent','verifier-organisation'];
     if (!auth.isLoggedIn() && !publicRoutes.includes(name)) {
       name = 'landing';
     }

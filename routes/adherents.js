@@ -7,6 +7,7 @@ const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const AdherentRepository     = require('../repositories/AdherentRepository');
 const OrganisationRepository = require('../repositories/OrganisationRepository');
+const PurgeService = require('../services/PurgeService');
 const emailSvc = require('../services/EmailService');
 const { ok, created, notFound, badRequest, forbidden, serverError } = require('../helpers/response');
 const { buildCarteOfficielle } = require('../helpers/carteTemplate');
@@ -246,7 +247,11 @@ router.get('/:id/carte', auth, async (req, res) => {
     if (!adh) return notFound(res, 'Adhérent non trouvé');
     if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
 
-    const qrData = adh.NumAdherent || `GPO-ADH-${adh.idAdh}`;
+    // Le QR code encode une vraie URL (pas un simple identifiant) — scannée avec n'importe
+    // quel appareil photo, elle ouvre directement la fiche de vérification publique de l'adhérent.
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const qrCode = adh.NumAdherent || `GPO-ADH-${adh.idAdh}`;
+    const qrData = `${appUrl}/verifier-adherent?code=${encodeURIComponent(qrCode)}`;
     const qrUrl  = await qrcode.toDataURL(qrData, { width: 220, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } });
 
     const dateExpiration = adh.DateAdhesion
@@ -352,10 +357,10 @@ router.delete('/:id', auth, roles('admin', 'gestionnaire'), async (req, res) => 
     const adh = await AdherentRepository.findByIdFull(req.params.id);
     if (!adh) return notFound(res, 'Adhérent non trouvé');
     if (!isOwnAdh(req, adh)) return forbidden(res, 'Cet adhérent ne concerne pas votre organisation');
-    if (adh.IdStatut === 1)
-      return badRequest(res, "Impossible de supprimer un adhérent actif. Résiliez-le d'abord.");
-    await AdherentRepository.delete(req.params.id);
-    ok(res, { message: 'Adhérent supprimé' });
+    if (!PurgeService.STATUTS_SUPPRIMABLES.includes(adh.IdStatut))
+      return badRequest(res, "Seul un adhérent suspendu ou clôturé peut être supprimé définitivement.");
+    PurgeService.purgerAdherent(req.params.id);
+    ok(res, { message: 'Adhérent supprimé définitivement, avec toutes ses données (paiements, bénéficiaires, compte de connexion...)' });
   } catch (err) { serverError(res, err); }
 });
 

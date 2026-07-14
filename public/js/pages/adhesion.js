@@ -183,7 +183,8 @@ router.register('adhesion', async (params = {}) => {
                 <div class="form-row">
                   <div class="form-group">
                     <label>Date de création</label>
-                    <input type="date" name="dateCrea">
+                    <input type="date" name="dateCrea" max="${new Date().toISOString().split('T')[0]}">
+                    <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Ne peut pas être une date future</p>
                   </div>
                   <div class="form-group">
                     <label>Téléphone</label>
@@ -364,6 +365,17 @@ router.register('adhesion', async (params = {}) => {
                   <div class="form-group">
                     <label>Profession</label>
                     <input type="text" name="profession" placeholder="Ex : Enseignant, Ingénieur…">
+                  </div>
+                  <div class="form-group">
+                    <label>Situation matrimoniale</label>
+                    <select name="situationMatrimoniale">
+                      <option value="">— Sélectionner —</option>
+                      <option value="Célibataire">Célibataire</option>
+                      <option value="Marié(e)">Marié(e)</option>
+                      <option value="Divorcé(e)">Divorcé(e)</option>
+                      <option value="Veuf/Veuve">Veuf/Veuve</option>
+                      <option value="Union libre">Union libre</option>
+                    </select>
                   </div>
                 </div>
 
@@ -625,6 +637,13 @@ router.register('adhesion', async (params = {}) => {
             <h3>Demande envoyée — dernière étape : le paiement</h3>
             <p>${data.message}<br>
                Référence : <strong>#${data.id}</strong></p>
+            <p style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#7c2d12;margin:16px 0;text-align:left">
+              ⚠️ <strong>Important :</strong> le document d'agrément fourni sera vérifié par notre équipe.
+              S'il s'avère non authentique, votre organisation sera rejetée définitivement et
+              <strong>aucun remboursement ne sera effectué</strong>, quel que soit le montant réglé ici.
+              Si votre dossier est refusé pour un tout autre motif (document valide), <strong>80% du
+              montant vous sera remboursé</strong> automatiquement.
+            </p>
             <div id="orgPaymentWidget" style="text-align:left;margin-top:20px"></div>
           </div>`;
 
@@ -658,11 +677,31 @@ router.register('adhesion', async (params = {}) => {
   // INDIVIDU MODE — flow 3 étapes
   // ══════════════════════════════════════════════════════════════
 
+  // Organisations pré-sélectionnées depuis la page d'accueil (liste déroulante) : soit un
+  // tableau (navigation JS directe), soit une chaîne "12,34" (URL rechargée / partagée).
+  const preselectedNumAgrs = Array.isArray(params.numAgrs)
+    ? params.numAgrs
+    : (params.numAgrs ? String(params.numAgrs).split(',').filter(Boolean) : []);
+
   let dossierData  = null;
-  let selectedOrgs = new Set();
+  let selectedOrgs = new Set(preselectedNumAgrs);
   let orgMap       = {};
   let searchTimer  = null;
   let totalPages   = 1;
+
+  // Récupère les informations des organisations pré-sélectionnées (peuvent ne pas figurer
+  // sur la première page de résultats de loadOrgs()) afin que le panneau "sélectionnées"
+  // les affiche correctement dès l'arrivée sur l'étape 2.
+  async function loadPreselectedOrgDetails() {
+    if (!selectedOrgs.size) return;
+    try {
+      const res  = await fetch('/api/public/organisations?all=1');
+      const data = await res.json();
+      (data.orgs || []).forEach(o => {
+        if (selectedOrgs.has(String(o.NumAgr))) orgMap[o.NumAgr] = o;
+      });
+    } catch (_) { /* le panneau affichera juste le numéro d'agrément à défaut du nom */ }
+  }
 
   // ── Étape 1 → Étape 2 ────────────────────────────────────────
   document.getElementById('indivNextBtn').addEventListener('click', () => {
@@ -688,6 +727,7 @@ router.register('adhesion', async (params = {}) => {
       adresse:          (fd.get('adresse')          || '').trim(),
       numCNI:           (fd.get('numCNI')           || '').trim(),
       profession:       (fd.get('profession')       || '').trim(),
+      situationMatrimoniale: fd.get('situationMatrimoniale') || '',
       description:      fd.get('description')       || '',
       _photoFile:    form.querySelector('[name="photo"]')?.files?.[0]    || null,
       _photoCNIFile: form.querySelector('[name="photoCNI"]')?.files?.[0] || null,
@@ -724,6 +764,9 @@ router.register('adhesion', async (params = {}) => {
       if (card) toggleOrg(card.dataset.id, card);
     });
 
+    if (selectedOrgs.size) {
+      loadPreselectedOrgDetails().then(updateSelectedPanel);
+    }
     loadOrgs(0);
   }
 

@@ -49,6 +49,13 @@ router.register('paiement-adhesion', async (params = {}) => {
       <label>Confirmez votre email (dossier de demande)</label>
       <input type="email" id="payEmailConfirm" required placeholder="email@exemple.com">
     </div>
+    <p style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#7c2d12;margin:14px 0">
+      ⚠️ <strong>Important :</strong> si un document justificatif fourni (agrément ministériel, pièce d'identité...)
+      s'avère non authentique après vérification, votre dossier sera rejeté définitivement et
+      <strong>aucun remboursement ne sera effectué</strong>, quel que soit le montant déjà réglé.
+      Si votre dossier est refusé pour un tout autre motif (document valide), <strong>80% du montant
+      vous sera remboursé</strong> automatiquement.
+    </p>
     <div id="paymentWidgetContainer"></div>`);
 
   document.getElementById('payEmailConfirm').addEventListener('change', e => {

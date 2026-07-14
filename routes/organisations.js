@@ -2,10 +2,13 @@ const router    = require('express').Router();
 const path      = require('path');
 const fs        = require('fs');
 const multer    = require('multer');
+const qrcode    = require('qrcode');
 const auth      = require('../middleware/auth');
 const roles     = require('../middleware/roles');
 const OrganisationRepository = require('../repositories/OrganisationRepository');
+const PurgeService = require('../services/PurgeService');
 const { ok, created, notFound, badRequest, forbidden, serverError } = require('../helpers/response');
+const { buildCarteOfficielle } = require('../helpers/carteTemplate');
 
 /** Un gestionnaire ne voit/modifie que sa propre organisation ; l'admin voit tout. */
 function isOwnOrg(req, numAgr) {
@@ -102,6 +105,45 @@ router.get('/:id', auth, async (req, res) => {
     const org = await OrganisationRepository.findByIdFull(req.params.id);
     if (!org) return notFound(res, 'Organisation non trouvée');
     ok(res, org);
+  } catch (err) { serverError(res, err); }
+});
+
+// ── GET /api/organisations/:id/carte ────────────────────────────
+router.get('/:id/carte', auth, async (req, res) => {
+  try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
+    const org = await OrganisationRepository.findByIdFull(req.params.id);
+    if (!org) return notFound(res, 'Organisation non trouvée');
+
+    // Le QR code encode une vraie URL — scannée avec n'importe quel appareil photo, elle ouvre
+    // directement la fiche de vérification publique de l'organisation.
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const qrData = `${appUrl}/verifier-organisation?code=${encodeURIComponent(org.NumAgr)}`;
+    const qrUrl  = await qrcode.toDataURL(qrData, { width: 220, margin: 1, color: { dark: '#0f172a', light: '#ffffff' } });
+
+    const dateExpiration = org.DateCreOrg
+      ? new Date(new Date(org.DateCreOrg).setFullYear(new Date(org.DateCreOrg).getFullYear() + 1))
+      : null;
+
+    const html = buildCarteOfficielle({
+      type: 'organisation',
+      orgName: org.LibOrg,
+      orgLogoUrl: org.Logo || null,
+      idCode: org.NumAgr,
+      nom: org.LibOrg,
+      typeOrg: org.LibTypOrg,
+      pays: org.LibPays || org.CodePays,
+      siege: org.SiegeOrg,
+      representant: [org.NomRepresentant, org.FonctionRepresentant].filter(Boolean).join(' — '),
+      photoUrl: org.Logo || null,
+      initiales: (org.LibOrg || '?')[0].toUpperCase(),
+      qrDataUrl: qrUrl,
+      dateEtablissement: org.DateCreOrg,
+      dateExpiration,
+    });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
   } catch (err) { serverError(res, err); }
 });
 
@@ -259,10 +301,10 @@ router.delete('/:id', auth, roles('admin'), async (req, res) => {
   try {
     const org = await OrganisationRepository.findByIdFull(req.params.id);
     if (!org) return notFound(res, 'Organisation non trouvée');
-    if (org.IdStatut === 1)
-      return badRequest(res, "Impossible de supprimer une organisation active. Clôturez-la d'abord.");
-    await OrganisationRepository.delete(req.params.id);
-    ok(res, { message: 'Organisation supprimée' });
+    if (!PurgeService.STATUTS_SUPPRIMABLES.includes(org.IdStatut))
+      return badRequest(res, "Seule une organisation suspendue ou clôturée peut être supprimée définitivement.");
+    PurgeService.purgerOrganisation(req.params.id);
+    ok(res, { message: 'Organisation supprimée définitivement, avec tous ses adhérents et données rattachées' });
   } catch (err) { serverError(res, err); }
 });
 

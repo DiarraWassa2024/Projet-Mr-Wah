@@ -1,5 +1,4 @@
 const { sendMail } = require('./email');
-const db = require('../config/database');
 
 const FROM = process.env.SMTP_FROM || '"SoliDev Platform" <noreply@solidev.africa>';
 
@@ -27,21 +26,11 @@ function wrapHtml(body) {
 </head><body><div class="card"><div style="background:linear-gradient(135deg,#145c56,#2f8f7f);text-align:center;padding-top:24px"><img src="${appUrl}/images/logo.svg" alt="SoliDev" style="width:44px;height:44px;border-radius:12px"></div>${body}</div></body></html>`;
 }
 
+// La journalisation dans SD_EmailLog est centralisée dans services/email.js::sendMail() —
+// tout envoi passant par ici (ou directement par email.js) y est donc déjà tracé.
 async function sendEmail({ to, subject, html, text, idAdh = null }) {
-  const now = new Date().toISOString().replace('T', ' ').split('.')[0];
-  const result = await sendMail({ to, from: FROM, subject, html, text });
-  const statut = result.ok ? 'envoyé' : 'erreur';
-  const erreur = result.ok ? null : result.error;
-
-  try {
-    await db.execute(
-      `INSERT INTO SD_EmailLog (destinataire, sujet, corps, dateEnvoi, statut, erreur, idAdh)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [to, subject, html || text || '', now, statut, erreur, idAdh]
-    );
-  } catch (_) {}
-
-  return { statut };
+  const result = await sendMail({ to, from: FROM, subject, html, text, idAdh });
+  return { statut: result.ok ? 'envoyé' : 'erreur' };
 }
 
 function tplConfirmation(adh, org) {
@@ -115,4 +104,97 @@ function tplRefus(adh, org, motif) {
   };
 }
 
-module.exports = { sendEmail, tplConfirmation, tplBienvenue, tplRefus };
+/** Envoyé à chaque adhérent d'une organisation qui vient de fermer (rétractation + remboursement). */
+function tplOrganisationFermee(adh, orgName) {
+  const html = wrapHtml(`
+    <div class="hdr" style="background:linear-gradient(135deg,#374151,#6b7280)">
+      <h1>⚠️ Organisation fermée</h1>
+      <p>SoliDev – Plateforme Panafricaine des Associations</p>
+    </div>
+    <div class="body">
+      <p>Bonjour <strong>${adh.PrenAdh ? adh.PrenAdh + ' ' : ''}${adh.NomAdh || ''}</strong>,</p>
+      <p>Nous vous informons que <strong>${orgName}</strong>, organisation à laquelle vous êtes affilié(e), a été
+         <strong style="color:#374151">retirée de la plateforme SoliDev</strong> à la demande de ses responsables.</p>
+      <div class="highlight warn">
+        Votre adhésion à cette organisation est désormais terminée. Si vous souhaitez rejoindre une autre
+        organisation sur SoliDev, vous pouvez soumettre une nouvelle demande d'adhésion à tout moment.
+      </div>
+    </div>
+    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
+  `);
+  return {
+    subject: `⚠️ ${orgName} a été retirée de SoliDev`,
+    html,
+    text: `Bonjour ${adh.PrenAdh || ''} ${adh.NomAdh || ''},\n\n"${orgName}", organisation à laquelle vous étiez affilié(e), a été retirée de la plateforme SoliDev à la demande de ses responsables. Votre adhésion à cette organisation est désormais terminée.`,
+  };
+}
+
+const MODE_PAIEMENT_LABELS = {
+  wave: 'Wave', orange_money: 'Orange Money', orange_money_mg: 'Orange Money',
+  mtn_money: 'MTN Mobile Money', moov_money: 'Moov Money', opay: 'OPay', palmpay: 'PalmPay',
+  mvola: 'MVola', airtel_money: 'Airtel Money', virement: 'Virement bancaire',
+  especes: 'Espèces', mobile_money: 'Mobile Money',
+};
+
+/** Reçu envoyé au donateur après un don (montant, organisation bénéficiaire, répartition). */
+function tplRecuDon(don) {
+  const fmt = n => Number(n || 0).toLocaleString('fr-FR');
+  const devise = don.codeDevise || 'XOF';
+  const dateStr = new Date(don.dateDon || Date.now()).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  const modeLabel = MODE_PAIEMENT_LABELS[don.modePaiement] || don.modePaiement || 'Mobile Money';
+
+  const repartitionBlock = don.orgLibOrg ? `
+      <div class="highlight">
+        <strong>${fmt(don.montantOrg)} ${devise}</strong> seront versés à <strong>${don.orgLibOrg}</strong><br>
+        <strong>${fmt(don.montantPlateforme)} ${devise}</strong> (${don.tauxCommission}%) — commission plateforme SoliDev
+      </div>` : `
+      <div class="highlight">
+        L'intégralité de ce don (<strong>${fmt(don.montantPlateforme)} ${devise}</strong>) soutient directement la plateforme SoliDev.
+      </div>`;
+
+  const html = wrapHtml(`
+    <div class="hdr" style="background:linear-gradient(135deg,#e91e8c,#f59e0b)">
+      <h1>💝 Merci pour votre don !</h1>
+      <p>SoliDev – Plateforme Panafricaine des Associations</p>
+    </div>
+    <div class="body">
+      <p>Bonjour${don.nom ? ' <strong>' + don.nom + '</strong>' : ''},</p>
+      <p>Nous avons bien reçu votre don. Voici votre reçu récapitulatif.</p>
+      <div class="id-box">
+        <p style="margin:0 0 6px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Référence du don</p>
+        <div class="id-num">#${don.idDon}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;color:#374151">
+        <tr><td style="padding:6px 0;color:#6b7280">Montant du don</td><td style="padding:6px 0;text-align:right"><strong>${fmt(don.montant)} ${devise}</strong></td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Destination</td><td style="padding:6px 0;text-align:right"><strong>${don.orgLibOrg || 'Don général — SoliDev'}</strong></td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Mode de paiement</td><td style="padding:6px 0;text-align:right">${modeLabel}</td></tr>
+        <tr><td style="padding:6px 0;color:#6b7280">Date</td><td style="padding:6px 0;text-align:right">${dateStr}</td></tr>
+      </table>
+      ${repartitionBlock}
+      ${don.message ? `<p style="font-style:italic;color:#6b7280">« ${don.message} »</p>` : ''}
+      <div class="highlight warn">
+        ⏳ Notre équipe vous contactera sous 24h pour finaliser les modalités de versement.
+      </div>
+      <p style="margin-top:20px">Merci pour votre générosité,<br><strong>L'équipe SoliDev</strong></p>
+    </div>
+    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
+  `);
+
+  const text = `Merci pour votre don #${don.idDon} !\n\n`
+    + `Montant : ${fmt(don.montant)} ${devise}\n`
+    + `Destination : ${don.orgLibOrg || 'Don général — SoliDev'}\n`
+    + `Mode de paiement : ${modeLabel}\n`
+    + `Date : ${dateStr}\n\n`
+    + (don.orgLibOrg
+        ? `${fmt(don.montantOrg)} ${devise} seront versés à ${don.orgLibOrg}.\n${fmt(don.montantPlateforme)} ${devise} (${don.tauxCommission}%) — commission plateforme SoliDev.\n\n`
+        : `L'intégralité (${fmt(don.montantPlateforme)} ${devise}) soutient directement la plateforme SoliDev.\n\n`)
+    + `Notre équipe vous contactera sous 24h pour finaliser les modalités de versement.`;
+
+  return {
+    subject: `💝 Reçu de votre don #${don.idDon} — SoliDev`,
+    html,
+    text,
+  };
+}
+
+module.exports = { sendEmail, tplConfirmation, tplBienvenue, tplRefus, tplRecuDon, tplOrganisationFermee };

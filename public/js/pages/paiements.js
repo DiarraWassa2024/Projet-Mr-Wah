@@ -1,5 +1,6 @@
 router.register('paiements', async () => {
   const app = document.getElementById('app');
+  const currentUser = auth.getUser() || {};
 
   /* ── Constantes ─────────────────────────────────────── */
   const TYPES = ['Tous','Adhésion','Cotisation','Don','Abonnement','Prestation','Autres'];
@@ -230,6 +231,8 @@ router.register('paiements', async () => {
         <td class="pay-actions">
           ${p.Statut !== 'Payé' && typeof PAYS_CONFIG !== 'undefined' && PAYS_CONFIG[p.CodePays]
             ? `<button class="pay-btn pay-btn-online" data-id="${p.IdPaiement}" title="Payer en ligne">💳</button>` : ''}
+          ${p.Statut === 'Payé' && currentUser.role !== 'admin'
+            ? `<button class="pay-btn pay-btn-remb" data-id="${p.IdPaiement}" title="Demander un remboursement">↩️</button>` : ''}
           <button class="pay-btn pay-btn-recu"   data-id="${p.IdPaiement}" title="Reçu PDF">📄</button>
           <button class="pay-btn pay-btn-edit"   data-id="${p.IdPaiement}" title="Modifier">✏️</button>
           <button class="pay-btn pay-btn-statut" data-id="${p.IdPaiement}" data-statut="${esc(p.Statut||'')}" title="Changer statut">🔄</button>
@@ -353,7 +356,61 @@ router.register('paiements', async () => {
         } catch(e) { showToast(e.message, 'error'); }
       };
     });
+    document.querySelectorAll('.pay-btn-remb').forEach(btn => {
+      btn.onclick = () => {
+        const p = paiements.find(x => String(x.IdPaiement) === btn.dataset.id);
+        openDemandeRembModal(p);
+      };
+    });
   }
+
+  /* ── Modal Demande de remboursement (cause obligatoire) ──────── */
+  function openDemandeRembModal(p) {
+    const estPaiementOrg = !p?.idAdh && p?.NumAgr;
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="rembModal">
+        <div class="modal" style="max-width:460px">
+          <div class="modal-header">
+            <h3>↩️ Demande de remboursement</h3>
+            <button class="modal-close" id="closeRembModal">×</button>
+          </div>
+          <div style="padding:20px">
+            ${estPaiementOrg ? `
+              <div class="msg error" style="display:block;margin-bottom:16px">
+                ⚠️ Ce paiement est la cotisation d'inscription de votre organisation. Si ce remboursement
+                est accepté et exécuté, <strong>votre organisation sera définitivement retirée de la
+                plateforme</strong> et ses adhérents seront prévenus par email.
+              </div>` : ''}
+            <p style="color:#64748b;font-size:13px;margin-bottom:12px">
+              Le montant réellement remboursé (si votre demande est acceptée) sera de ${TAUX_REMB_INFO}% du
+              montant payé — vous devrez accepter explicitement cette offre.
+            </p>
+            <div class="form-group">
+              <label>Cause du remboursement *</label>
+              <textarea id="rembMotif" rows="3" placeholder="Expliquez pourquoi vous souhaitez ce remboursement…" required></textarea>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-secondary" id="cancelRembModal">Annuler</button>
+              <button class="btn btn-primary" id="saveRembModal">Envoyer la demande</button>
+            </div>
+          </div>
+        </div>
+      </div>`);
+
+    const close = () => document.getElementById('rembModal')?.remove();
+    document.getElementById('closeRembModal').onclick  = close;
+    document.getElementById('cancelRembModal').onclick = close;
+    document.getElementById('saveRembModal').onclick = async () => {
+      const motif = document.getElementById('rembMotif').value.trim();
+      if (!motif) { showToast('La cause du remboursement est obligatoire', 'error'); return; }
+      try {
+        await api.post('/remboursements', { idPaiement: p.IdPaiement, motif });
+        showToast('Demande de remboursement envoyée', 'success');
+        close();
+      } catch (e) { showToast(e.message || 'Erreur', 'error'); }
+    };
+  }
+  const TAUX_REMB_INFO = 80; // aligné sur config/remboursement.js (TAUX_REMBOURSEMENT_PCT)
 
   /* ── Modal Nouveau/Modifier ──────────────────────────── */
   function openModal(p = {}) {

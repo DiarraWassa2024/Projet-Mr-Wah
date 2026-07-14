@@ -11,6 +11,17 @@
   --grey:      #6b7280;
   --bg:        #f3f4f6;
 
+  /* Accent de la sidebar/logo/avatar, propre à chaque rôle (admin par défaut ci-dessous ;
+     surchargé par .role-gestionnaire / .role-adherent sur <body>, posé dans app.js::showShell()) */
+  --sb-accent-a:      #3b82f6;
+  --sb-accent-b:      #6366f1;
+  --sb-active-bg1:    rgba(59,130,246,.14);
+  --sb-active-bg2:    rgba(99,102,241,.1);
+  --sb-active-border: rgba(99,102,241,.2);
+  /* Fond de la sidebar elle-même — teinte nettement le grand aplat visuel, pas seulement
+     de petits accents (logo/avatar), pour que les 3 rôles soient reconnaissables d'un coup d'œil */
+  --sb-bg: #0d1117;
+
   /* Layout */
   --sidebar-w: 240px;
   --header-h:  60px;
@@ -39,6 +50,36 @@
   --transition-slow:   all .35s cubic-bezier(.4,0,.2,1);
 }
 
+/* Couleur propre à chaque interface (admin = bleu par défaut ci-dessus, sans surcharge) :
+   organisation (gestionnaire) = teal clair/vif, adhérent = ambre/doré clair. Posée sur <body>
+   par app.js::showShell() selon le rôle connecté ; s'applique aux boutons, focus, sidebar,
+   logo et avatar de tout le tableau de bord. La sidebar reste sombre en profondeur (texte clair
+   dessus), mais les accents (logo, avatar, bordure du haut, boutons) sont nettement plus clairs
+   et lumineux qu'auparavant pour bien distinguer les 3 rôles au premier coup d'œil. */
+body.role-gestionnaire {
+  --primary:   #0d9488;
+  --primary-d: #0f766e;
+  --sb-accent-a:      #2dd4bf;
+  --sb-accent-b:      #5eead4;
+  --sb-active-bg1:    rgba(45,212,191,.18);
+  --sb-active-bg2:    rgba(94,234,212,.12);
+  --sb-active-border: rgba(45,212,191,.32);
+  --sb-bg: linear-gradient(180deg, #0f3d38 0%, #0d1117 100%);
+}
+body.role-adherent {
+  --primary:   #d97706;
+  --primary-d: #b45309;
+  --sb-accent-a:      #fbbf24;
+  --sb-accent-b:      #fde68a;
+  --sb-active-bg1:    rgba(251,191,36,.18);
+  --sb-active-bg2:    rgba(253,230,138,.12);
+  --sb-active-border: rgba(251,191,36,.32);
+  --sb-bg: linear-gradient(180deg, #4a2e08 0%, #0d1117 100%);
+}
+body.role-admin {
+  --sb-bg: linear-gradient(180deg, #0a1530 0%, #0d1117 100%);
+}
+
 /* ===== RESET ===== */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #111; font-size: 14px; }
@@ -52,7 +93,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 /* ===== SIDEBAR (redesign) ===== */
 #sidebar {
   width: var(--sidebar-w);
-  background: #0d1117;
+  background: var(--sb-bg, #0d1117);
   display: flex; flex-direction: column;
   position: fixed; top: 0; left: 0; bottom: 0;
   z-index: 100; transition: transform .25s;
@@ -67,7 +108,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 .sb-logo {
   width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0;
-  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  background: linear-gradient(135deg, var(--sb-accent-a) 0%, var(--sb-accent-b) 100%);
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-weight: 900; font-size: 14px; letter-spacing: -.5px;
   box-shadow: 0 4px 14px rgba(99,102,241,.45);
@@ -94,14 +135,14 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 .sb-item:hover { background: rgba(255,255,255,.04); color: #cbd5e1; }
 .sb-item.active {
-  background: linear-gradient(135deg, rgba(59,130,246,.14), rgba(99,102,241,.1));
+  background: linear-gradient(135deg, var(--sb-active-bg1), var(--sb-active-bg2));
   color: #e2e8f0; font-weight: 600;
-  border-color: rgba(99,102,241,.2);
+  border-color: var(--sb-active-border);
 }
 .sb-item.active::before {
   content: ''; position: absolute;
   left: -1px; top: 20%; height: 60%; width: 3px;
-  background: linear-gradient(180deg, #3b82f6, #6366f1);
+  background: linear-gradient(180deg, var(--sb-accent-a), var(--sb-accent-b));
   border-radius: 0 3px 3px 0;
 }
 
@@ -128,7 +169,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 }
 .sb-user-card .avatar {
   width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  background: linear-gradient(135deg, var(--sb-accent-a), var(--sb-accent-b));
   color: #fff; font-weight: 700; font-size: 13px;
   display: flex; align-items: center; justify-content: center;
 }
@@ -151,7 +192,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 #topbar {
   height: var(--header-h);
   background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 3px solid var(--sb-accent-a);
   display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center;
   padding: 0 24px;
   position: sticky; top: 0; z-index: 50;
@@ -199,6 +240,47 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .lang-item.active { color: var(--primary); font-weight: 700; background: #eff6ff; }
 .lang-menu-center { display: flex; justify-content: center; margin-top: 18px; }
 .lang-menu-center .lang-dropdown { left: 50%; right: auto; transform: translateX(-50%); }
+
+/* Cloche de notifications internes (même patron que .lang-menu) */
+.notif-menu { position: relative; }
+.notif-menu-btn {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid #d1d5db; border-radius: 50%;
+  width: 34px; height: 34px; font-size: 15px; cursor: pointer;
+  transition: background .15s;
+}
+.notif-menu-btn:hover { background: #f1f5f9; }
+.notif-badge {
+  position: absolute; top: -4px; right: -4px;
+  background: #dc2626; color: #fff; font-size: 10px; font-weight: 700;
+  min-width: 16px; height: 16px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; padding: 0 3px;
+  box-shadow: 0 0 0 2px #fff;
+}
+.notif-dropdown {
+  position: absolute; top: calc(100% + 10px); right: 0;
+  background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.13);
+  width: 320px; max-height: 420px; display: none; flex-direction: column;
+  overflow: hidden; z-index: 500; animation: ddFadeIn .15s ease;
+}
+.notif-menu.open .notif-dropdown { display: flex; }
+.notif-dropdown-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid #f1f5f9;
+  font-size: 13px; font-weight: 700; color: #0f172a;
+}
+.notif-mark-all { background: none; border: none; color: var(--primary); font-size: 12px; font-weight: 600; cursor: pointer; }
+.notif-list { overflow-y: auto; flex: 1; }
+.notif-item { padding: 12px 16px; border-bottom: 1px solid #f8fafc; cursor: pointer; transition: background .12s; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: #f9fafb; }
+.notif-item.notif-unread { background: #eff6ff; }
+.notif-item-titre { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+.notif-item-contenu { font-size: 12.5px; color: #64748b; line-height: 1.4; margin-bottom: 4px; }
+.notif-item-date { font-size: 11px; color: #94a3b8; }
+.notif-empty { padding: 24px 16px; text-align: center; font-size: 13px; color: #94a3b8; }
+
 #app { padding: 24px; flex: 1; }
 
 /* ===== USER MENU (topbar) ===== */
@@ -422,6 +504,7 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .dk-iamber  { background:rgba(245,158,11,.1);  }
 .dk-iorange { background:rgba(249,115,22,.1);  }
 .dk-iteal   { background:rgba(20,184,166,.1);  }
+.dk-igold   { background:rgba(207,154,68,.15); }
 
 .dk-value { font-size:26px; font-weight:800; color:#0f172a; line-height:1; margin-bottom:2px; font-variant-numeric:tabular-nums; }
 .dk-unit  { font-size:11px; color:#94a3b8; font-weight:600; letter-spacing:.4px; margin-bottom:4px; }
@@ -576,13 +659,15 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 td.actions { white-space: nowrap; }
 
 /* ===== BADGES ===== */
-.badge, .badge-blue, .badge-green, .badge-grey {
+.badge, .badge-blue, .badge-green, .badge-grey, .badge-amber, .badge-red {
   display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
 }
 .badge        { background: #e0e7ff; color: #3730a3; }
 .badge-blue   { background: #dbeafe; color: #1d4ed8; }
 .badge-green  { background: #d1fae5; color: #065f46; }
 .badge-grey   { background: #f3f4f6; color: #6b7280; }
+.badge-amber  { background: #fef3c7; color: #92400e; }
+.badge-red    { background: #fee2e2; color: #991b1b; }
 
 /* ===== SUMMARY BAR ===== */
 .summary-bar {
@@ -833,15 +918,18 @@ body.landing-body {
 }
 
 /* --- Public Form (adhesion + besoins) --- */
+/* Fond harmonisé avec la palette "Teck & Terracotta" de la page d'accueil
+   (public/css/landing.css :root) — mêmes teintes que le hero, sans dépendre de ce fichier
+   CSS chargé dynamiquement uniquement par la page d'accueil. */
 .pub-form-wrap {
   min-height: 100vh; padding: 80px 20px;
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+  background: linear-gradient(135deg, #0e3532 0%, #145c56 55%, #2f8f7f 100%);
   display: flex; flex-direction: column; align-items: center;
 }
 .pub-form-back {
   align-self: flex-start; margin-left: calc(50% - 310px);
   display: flex; align-items: center; gap: 6px;
-  color: #93c5fd; background: none; border: none;
+  color: #cf9a44; background: none; border: none;
   font-size: 14px; cursor: pointer; margin-bottom: 20px;
 }
 .pub-form-back:hover { color: #fff; }
@@ -2256,6 +2344,38 @@ body.landing-body {
   pointer-events: none;
 }
 
+/* Barre de progression d'une campagne de dons */
+.don-campagne-bar {
+  width: 100%; height: 8px; border-radius: 4px; background: #f1f5f9; overflow: hidden; margin-top: 8px;
+}
+.don-campagne-fill { height: 100%; background: linear-gradient(90deg, #e91e8c, #f59e0b); border-radius: 4px; transition: width .3s; }
+.don-campagne-label { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+/* Organisation hint + répartition commission */
+.don-org-hint, .don-split-hint {
+  font-size: 12px; color: #64748b; margin-top: 6px; line-height: 1.5;
+}
+.don-split-hint { text-align: center; margin: 0 0 12px; }
+
+/* Moyens de paiement — badges logo cliquables */
+.don-pay-methods {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.don-pay-loading { font-size: 13px; color: #94a3b8; padding: 6px 0; }
+.don-pay-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 10px;
+  border: 1.5px solid #e2e8f0; background: #f8fafc;
+  font-size: 13px; font-weight: 600; color: #475569;
+  cursor: pointer; transition: all .2s;
+}
+.don-pay-btn:hover { border-color: #cbd5e1; }
+.don-pay-btn.active {
+  border-color: #e91e8c; background: rgba(233,30,140,.08); color: #be185d;
+}
+.don-pay-logo { display: inline-flex; width: 22px; height: 22px; flex-shrink: 0; }
+.don-pay-logo svg { width: 100%; height: 100%; }
+
 /* Total row */
 .don-total-row {
   display: flex;
@@ -2796,6 +2916,9 @@ body.landing-body {
 .dk-grid-5 {
   grid-template-columns: repeat(5, 1fr);
 }
+.dk-grid-6 {
+  grid-template-columns: repeat(6, 1fr);
+}
 
 /* New KPI icon bg / fill colors */
 .dk-ipink   { background: rgba(236,72,153,.1); }
@@ -2938,11 +3061,13 @@ body.landing-body {
 /* Responsive: collapse multi-col grids on smaller screens */
 @media (max-width: 1200px) {
   .dk-grid-5        { grid-template-columns: repeat(5, 1fr); }
+  .dk-grid-6        { grid-template-columns: repeat(3, 1fr); }
   .dash-charts-3    { grid-template-columns: repeat(2, 1fr); }
   .dash-activity-row{ grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 900px) {
   .dk-grid-5        { grid-template-columns: repeat(3, 1fr); }
+  .dk-grid-6        { grid-template-columns: repeat(2, 1fr); }
   .dash-charts-3    { grid-template-columns: 1fr; }
   .dash-activity-row{ grid-template-columns: 1fr; }
   .dash-strip       { flex-direction: column; }
@@ -2950,6 +3075,7 @@ body.landing-body {
 }
 @media (max-width: 600px) {
   .dk-grid-5 { grid-template-columns: repeat(2, 1fr); }
+  .dk-grid-6 { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ================================================================

@@ -130,6 +130,7 @@ router.register('demandes', async () => {
                 <div class="dem-info-item"><span>Date de naissance</span><strong>${fmtDate(dem.dateCrea)}</strong></div>
                 <div class="dem-info-item"><span>N° CNI / Passeport</span><strong>${dem.repCNI||'—'}</strong></div>
                 <div class="dem-info-item"><span>Profession</span><strong>${dem.profession||'—'}</strong></div>
+                <div class="dem-info-item"><span>Situation matrimoniale</span><strong>${dem.situationMatrimoniale||'—'}</strong></div>
               </div>
             </div>
 
@@ -251,6 +252,8 @@ router.register('demandes', async () => {
     const canAct      = sa === 'En attente de validation';
     const nextStatuts = getNextStatuts(sa);
     const canChange   = nextStatuts.length > 0;
+    const ETATS_TERMINAUX = ['Refusé', 'Radié', 'Exclu', 'Démissionnaire'];
+    const canRejectDoc = !!dem.docAgrement && !ETATS_TERMINAUX.includes(sa);
     const fmtDate = d => d ? new Date(d).toLocaleDateString('fr-FR',{day:'2-digit',month:'long',year:'numeric'}) : '—';
 
     document.body.insertAdjacentHTML('beforeend', `
@@ -312,11 +315,17 @@ router.register('demandes', async () => {
             ${dem.docAgrement ? `
             <div class="dem-section">
               <div class="dem-section-title">📎 Document d'agrément</div>
-              <div class="dem-docs-list">
+              <div class="dem-docs-list" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <a href="${dem.docAgrement}" target="_blank" class="dem-doc-link">
                   <span>📄</span><span>Voir le document</span>
                 </a>
+                ${canRejectDoc ? `
+                <button id="btnRejectDoc" class="btn-dem-refuse" style="font-size:12px;padding:6px 12px">🚫 Document non authentique</button>
+                <button id="btnRefuseRemb" class="btn-dem-refuse" style="font-size:12px;padding:6px 12px;background:#fff7ed;color:#9a3412;border:1px solid #fed7aa">✕ Refuser (document valide — remb. 80%)</button>` : ''}
               </div>
+              ${canRejectDoc ? `<p style="font-size:11.5px;color:#94a3b8;margin-top:8px">
+                Document non authentique → rejet sans aucun remboursement · Refus pour un autre motif (document valide) → 80% remboursés automatiquement
+              </p>` : ''}
             </div>` : ''}
 
             <!-- Suivi -->
@@ -382,7 +391,88 @@ router.register('demandes', async () => {
         } catch(e) { showToast(e.message, 'err'); btn.disabled = false; btn.textContent = 'Appliquer'; }
       };
     }
+    if (canRejectDoc) {
+      document.getElementById('btnRejectDoc').onclick = () => { closeBtn(); confirmRejectDoc(dem); };
+      document.getElementById('btnRefuseRemb').onclick = () => { closeBtn(); confirmRefuseRemboursement(dem); };
+    }
     loadHistoriqueModal(dem.idDemande);
+  }
+
+  /* ── confirm reject (document non authentique) ────── */
+  function confirmRejectDoc(dem) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="rejDocModal">
+        <div class="modal conf-modal">
+          <div class="conf-icon conf-err">🚫</div>
+          <h3>Rejeter pour document non authentique ?</h3>
+          <p>L'organisation <strong>${dem.nomOrg}</strong> sera rejetée définitivement. Si sa cotisation a déjà
+             été réglée, <strong>aucun remboursement ne sera effectué</strong> — conformément aux conditions
+             communiquées lors du paiement. Un email de rejet avec le motif sera envoyé à
+             <strong>${dem.emailOrg}</strong>.</p>
+          <div class="form-group" style="margin:16px 0 0">
+            <label style="font-size:13px;color:#64748b;margin-bottom:6px;display:block">
+              Motif du rejet <span style="color:#dc2626">(obligatoire)</span>
+            </label>
+            <textarea id="motifRejectInput" rows="3" placeholder="Expliquez précisément pourquoi le document n'est pas authentique…"
+              style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical"></textarea>
+          </div>
+          <div class="conf-actions">
+            <button class="btn btn-secondary" id="rejDocCancel">Annuler</button>
+            <button class="btn-dem-refuse" id="rejDocOk">Confirmer le rejet</button>
+          </div>
+        </div>
+      </div>`);
+    document.getElementById('rejDocCancel').onclick = () => document.getElementById('rejDocModal').remove();
+    document.getElementById('rejDocOk').onclick = async () => {
+      const motif = document.getElementById('motifRejectInput').value.trim();
+      if (!motif) { showToast('Le motif est obligatoire', 'err'); return; }
+      document.getElementById('rejDocOk').disabled = true;
+      document.getElementById('rejDocOk').textContent = 'En cours…';
+      try {
+        await api.put(`/demandes/${dem.idDemande}/rejeter-document`, { motif });
+        document.getElementById('rejDocModal').remove();
+        showToast('Organisation rejetée · Aucun remboursement · Email envoyé', 'ok');
+        render();
+      } catch(e) { showToast(e.message, 'err'); document.getElementById('rejDocModal').remove(); }
+    };
+  }
+
+  /* ── confirm refuse with 80% refund (document valide, autre motif) ── */
+  function confirmRefuseRemboursement(dem) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="refRembModal">
+        <div class="modal conf-modal">
+          <div class="conf-icon conf-err">✕</div>
+          <h3>Refuser cette organisation ?</h3>
+          <p>Le document reste considéré comme valide. Si sa cotisation a déjà été réglée,
+             <strong>80% du montant sera remboursé automatiquement</strong> (le solde reste acquis
+             à la plateforme). Un email avec le motif sera envoyé à <strong>${dem.emailOrg}</strong>.</p>
+          <div class="form-group" style="margin:16px 0 0">
+            <label style="font-size:13px;color:#64748b;margin-bottom:6px;display:block">
+              Motif du refus <span style="color:#dc2626">(obligatoire)</span>
+            </label>
+            <textarea id="motifRefRembInput" rows="3" placeholder="Expliquez la raison du refus…"
+              style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical"></textarea>
+          </div>
+          <div class="conf-actions">
+            <button class="btn btn-secondary" id="refRembCancel">Annuler</button>
+            <button class="btn-dem-refuse" id="refRembOk">Confirmer le refus</button>
+          </div>
+        </div>
+      </div>`);
+    document.getElementById('refRembCancel').onclick = () => document.getElementById('refRembModal').remove();
+    document.getElementById('refRembOk').onclick = async () => {
+      const motif = document.getElementById('motifRefRembInput').value.trim();
+      if (!motif) { showToast('Le motif est obligatoire', 'err'); return; }
+      document.getElementById('refRembOk').disabled = true;
+      document.getElementById('refRembOk').textContent = 'En cours…';
+      try {
+        const res = await api.put(`/demandes/${dem.idDemande}/refuser-remboursement`, { motif });
+        document.getElementById('refRembModal').remove();
+        showToast(res.message || 'Organisation refusée', 'ok');
+        render();
+      } catch(e) { showToast(e.message, 'err'); document.getElementById('refRembModal').remove(); }
+    };
   }
 
   /* ── confirm accept ───────────────────────────────── */

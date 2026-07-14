@@ -87,6 +87,31 @@ router.put('/:id/refuser', auth, roles('admin', 'gestionnaire'), async (req, res
   }
 });
 
+// PUT /api/demandes/:id/rejeter-document — document justificatif jugé non authentique par
+// l'admin après vérification : rejet définitif, sans remboursement. Admin uniquement (un
+// gestionnaire jugeant le document de sa propre organisation serait en conflit d'intérêt).
+router.put('/:id/rejeter-document', auth, roles('admin'), async (req, res) => {
+  try {
+    const result = await DemandeService.rejeterDocumentInvalide(req.params.id, req.user.username, req.body.motif);
+    ok(res, result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    serverError(res, err);
+  }
+});
+
+// PUT /api/demandes/:id/refuser-remboursement — refus volontaire de l'admin, document valide :
+// si la cotisation a déjà été réglée, TAUX_REMBOURSEMENT_PCT % est remboursé immédiatement.
+router.put('/:id/refuser-remboursement', auth, roles('admin'), async (req, res) => {
+  try {
+    const result = await DemandeService.refuserAvecRemboursement(req.params.id, req.user.username, req.body.motif);
+    ok(res, result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    serverError(res, err);
+  }
+});
+
 // PUT /api/demandes/:id/statut — changement manuel de statut (Actif→Suspendu, Radié, etc.) — admin uniquement
 router.put('/:id/statut', auth, roles('admin'), async (req, res) => {
   try {

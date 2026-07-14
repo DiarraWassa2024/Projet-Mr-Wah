@@ -147,9 +147,10 @@ router.register('organisations', async () => {
               <td style="text-align:center">${o.nbDocuments > 0
                 ? `<span class="badge badge-blue">📄 ${o.nbDocuments}</span>` : '—'}</td>
               <td class="actions">
-                <button class="btn-icon edit" data-id="${o.NumAgr}" title="Modifier">✏️</button>
-                <button class="btn-icon del"  data-id="${o.NumAgr}" title="Supprimer"
-                        ${o.IdStatut === 1 ? 'disabled style="opacity:.35"' : ''}>🗑️</button>
+                <button class="btn-icon edit"  data-id="${o.NumAgr}" title="Modifier">✏️</button>
+                <button class="btn-icon carte" data-id="${o.NumAgr}" title="Carte organisation">🪪</button>
+                <button class="btn-icon del"  data-id="${o.NumAgr}" title="${[3,5].includes(o.IdStatut) ? 'Supprimer définitivement' : 'Seule une organisation suspendue ou clôturée peut être supprimée'}"
+                        ${[3,5].includes(o.IdStatut) ? '' : 'disabled style="opacity:.35"'}>🗑️</button>
               </td>
             </tr>`).join('')
           : `<tr><td colspan="8" style="padding:40px;text-align:center;color:#9ca3af">
@@ -180,9 +181,19 @@ router.register('organisations', async () => {
     });
     document.querySelectorAll('.btn-icon.del').forEach(btn => {
       btn.onclick = async () => {
-        if (!confirm(`Supprimer l'organisation ${btn.dataset.id} ?`)) return;
+        if (!confirm(`Supprimer DÉFINITIVEMENT l'organisation ${btn.dataset.id} ainsi que tous ses adhérents et données rattachées (paiements, bénéficiaires, comptes...) ? Cette action est irréversible.`)) return;
         try { await api.delete(`/organisations/${btn.dataset.id}`); render(); }
         catch (e) { toast(e.message, 'error'); }
+      };
+    });
+    document.querySelectorAll('.btn-icon.carte').forEach(btn => {
+      btn.onclick = () => {
+        const token = localStorage.getItem('gpo_token');
+        const w = window.open('', '_blank', 'width=620,height=780');
+        fetch(`/api/organisations/${btn.dataset.id}/carte`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.text())
+          .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
+          .catch(() => { w.close(); toast('Erreur lors de la génération de la carte', 'error'); });
       };
     });
   }
@@ -312,8 +323,9 @@ router.register('organisations', async () => {
               </div>
               <div class="form-group">
                 <label>Date de création</label>
-                <input type="date" name="DateCreOrg"
+                <input type="date" name="DateCreOrg" max="${new Date().toISOString().split('T')[0]}"
                        value="${org?.DateCreOrg ? org.DateCreOrg.split('T')[0] : ''}">
+                <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Ne peut pas être une date future</p>
               </div>
             </div>
 

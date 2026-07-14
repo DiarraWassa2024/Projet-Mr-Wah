@@ -89,13 +89,16 @@ const StatsService = {
 
     // ── Dons ──────────────────────────────────────────────────────
     const [[donsAgg]] = await db.execute(`
-      SELECT COUNT(*) AS nb, COALESCE(SUM(montant),0) AS montant
+      SELECT COUNT(*) AS nb, COALESCE(SUM(montant),0) AS montant,
+             COALESCE(SUM(montantPlateforme),0) AS commission
       FROM SD_Don${dateCond('dateDon', dateFrom, dateTo)}`);
 
     const [recentDons] = await db.execute(`
-      SELECT * FROM SD_Don
-      ${dateCond('dateDon', dateFrom, dateTo)}
-      ORDER BY dateDon DESC LIMIT 6`);
+      SELECT d.*, o.LibOrg AS orgLibOrg
+      FROM SD_Don d
+      LEFT JOIN GPOTB01_Organisation o ON o.NumAgr = d.numAgr
+      ${dateCond('d.dateDon', dateFrom, dateTo)}
+      ORDER BY d.dateDon DESC LIMIT 6`);
 
     const [monthlyDons] = await db.execute(`
       SELECT strftime('%Y-%m', dateDon) AS mois,
@@ -157,8 +160,9 @@ const StatsService = {
       totalPaiements:      pays.total       || 0,
       prestations:         prest.total      || 0,
       evenements:          even.total       || 0,
-      donsTotal:           donsAgg.montant  || 0,
-      donsNb:              donsAgg.nb       || 0,
+      donsTotal:           donsAgg.montant    || 0,
+      donsNb:              donsAgg.nb         || 0,
+      donsCommission:      donsAgg.commission || 0,
       opportunitesTotal:   oppsAgg.total    || 0,
       opportunitesActives: oppsAgg.actives  || 0,
       cotisationsNb:       cotisAgg.nb      || 0,

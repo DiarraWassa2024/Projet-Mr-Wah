@@ -111,9 +111,47 @@ router.register('landing', () => {
   setupReveal();
   setupFlagBtns(pays.code);
   setupOrgSearch();
+  loadActualites();
+  loadFaq();
   applyLang(pays.lang);
   startClock(pays.timezone);
 });
+
+// ── Actualités récentes (public, plateforme + organisations) ──────
+async function loadActualites() {
+  const grid = document.getElementById('lpActuGrid');
+  if (!grid) return;
+  try {
+    const res  = await fetch('/api/public/actualites');
+    const rows = res.ok ? await res.json() : [];
+    if (!rows.length) { grid.innerHTML = `<p class="lp-actu-empty">Aucune actualité pour le moment.</p>`; return; }
+    grid.innerHTML = rows.map(a => `
+      <div class="lp-actu-card">
+        <div class="lp-actu-source">${a.LibOrg || 'SoliDev'}</div>
+        <div class="lp-actu-title">${a.titre}</div>
+        <div class="lp-actu-excerpt">${a.contenu.slice(0, 140)}${a.contenu.length > 140 ? '…' : ''}</div>
+        <div class="lp-actu-date">${new Date(a.datePublication).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' })}</div>
+      </div>`).join('');
+  } catch (_) { grid.innerHTML = `<p class="lp-actu-empty">Impossible de charger les actualités.</p>`; }
+}
+
+// ── FAQ publique (accordéon simple) ────────────────────────────────
+async function loadFaq() {
+  const list = document.getElementById('lpFaqList');
+  if (!list) return;
+  try {
+    const res  = await fetch('/api/public/faq');
+    const rows = res.ok ? await res.json() : [];
+    if (!rows.length) { list.innerHTML = `<p class="lp-actu-empty">Aucune question pour le moment.</p>`; return; }
+    list.innerHTML = rows.map((f, i) => `
+      <div class="lp-faq-item">
+        <button class="lp-faq-q" onclick="this.parentElement.classList.toggle('open')">
+          <span>${f.question}</span><span class="lp-faq-caret">▾</span>
+        </button>
+        <div class="lp-faq-a">${f.reponse}</div>
+      </div>`).join('');
+  } catch (_) { list.innerHTML = `<p class="lp-actu-empty">Impossible de charger la FAQ.</p>`; }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // EMBLÈME SVG — illustration originale « solidarité + développement »
@@ -215,13 +253,26 @@ function buildOnePager(pays) {
       </button>
     </div>
 
-    <div class="lp-org-search" id="lpOrgSearch">
-      <div class="lp-org-search-box">
-        <span class="lp-org-search-icon">🔍</span>
-        <input type="text" id="lpOrgSearchInput" autocomplete="off"
-               placeholder="Rechercher une organisation déjà inscrite…">
+    <div class="lp-org-select" id="lpOrgSelect">
+      <button type="button" class="lp-org-select-box" id="lpOrgSelectToggle">
+        <span class="lp-org-select-icon">🏢</span>
+        <span class="lp-org-select-label" id="lpOrgSelectLabel">Choisir une ou plusieurs organisations déjà inscrites…</span>
+        <span class="lp-org-select-caret">▾</span>
+      </button>
+      <div class="lp-org-dropdown" id="lpOrgDropdown" style="display:none">
+        <div class="lp-org-dropdown-search">
+          <input type="text" id="lpOrgFilterInput" autocomplete="off" placeholder="Filtrer par nom…">
+        </div>
+        <div class="lp-org-dropdown-list" id="lpOrgDropdownList">
+          <div class="lp-org-dropdown-loading">⏳ Chargement des organisations…</div>
+        </div>
+        <div class="lp-org-dropdown-footer">
+          <span id="lpOrgSelCount">0 sélectionnée(s)</span>
+          <button type="button" class="lp-org-btn" id="lpOrgContinueBtn" disabled>
+            Continuer l'inscription →
+          </button>
+        </div>
       </div>
-      <div class="lp-org-suggestions" id="lpOrgSuggestions" style="display:none"></div>
     </div>
 
     <div class="lp-hero-scroll">▼</div>
@@ -342,6 +393,34 @@ function buildOnePager(pays) {
   </div>
 </section>
 
+<!-- ══════════════════════════════════════════════════
+     SECTION 5 — ACTUALITÉS RÉCENTES
+════════════════════════════════════════════════════ -->
+<section class="lp-section alt lp-reveal" id="actualites">
+  <div class="lp-section-inner wide">
+    <div class="lp-section-tag">Vie du réseau</div>
+    <h2 class="lp-section-title">Actualités récentes</h2>
+    <p class="lp-section-sub">Les dernières nouvelles des organisations membres de SoliDev.</p>
+    <div class="lp-actu-grid" id="lpActuGrid">
+      <div class="lp-actu-loading">⏳ Chargement…</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 6 — FAQ
+════════════════════════════════════════════════════ -->
+<section class="lp-section lp-reveal" id="faq">
+  <div class="lp-section-inner">
+    <div class="lp-section-tag">Questions fréquentes</div>
+    <h2 class="lp-section-title">FAQ</h2>
+    <p class="lp-section-sub">Tout ce qu'il faut savoir avant de rejoindre SoliDev.</p>
+    <div class="lp-faq-list" id="lpFaqList">
+      <div class="lp-actu-loading">⏳ Chargement…</div>
+    </div>
+  </div>
+</section>
+
 <!-- ── FOOTER ── -->
 <footer class="lp-footer">
   <div class="lp-footer-inner">
@@ -414,55 +493,86 @@ function setupFlagBtns(activeCode) {
   });
 }
 
-// ── Recherche d'organisation (instantanée, avec suggestions) ──────
+// ── Sélecteur d'organisations (liste déroulante à choix multiple) ──
 function setupOrgSearch() {
-  const input = document.getElementById('lpOrgSearchInput');
-  const box   = document.getElementById('lpOrgSuggestions');
-  if (!input || !box) return;
+  const toggle   = document.getElementById('lpOrgSelectToggle');
+  const dropdown = document.getElementById('lpOrgDropdown');
+  const listEl   = document.getElementById('lpOrgDropdownList');
+  const filter   = document.getElementById('lpOrgFilterInput');
+  const label    = document.getElementById('lpOrgSelectLabel');
+  const countEl  = document.getElementById('lpOrgSelCount');
+  const contBtn  = document.getElementById('lpOrgContinueBtn');
+  if (!toggle || !dropdown || !listEl) return;
 
-  let timer = null;
-  let currentReq = 0;
+  let allOrgs    = null; // chargées une seule fois à la première ouverture
+  const selected = new Map(); // NumAgr -> organisation (préserve les infos pour l'étiquette)
 
-  input.addEventListener('input', () => {
-    clearTimeout(timer);
-    const q = input.value.trim();
-    if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
-    timer = setTimeout(() => runSearch(q), 250);
+  toggle.addEventListener('click', () => {
+    const opening = dropdown.style.display === 'none';
+    dropdown.style.display = opening ? '' : 'none';
+    if (opening && allOrgs === null) loadOrgs();
   });
 
   document.addEventListener('click', e => {
-    if (!box.contains(e.target) && e.target !== input) box.style.display = 'none';
+    if (!dropdown.contains(e.target) && e.target !== toggle && !toggle.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
   });
 
-  async function runSearch(q) {
-    const reqId = ++currentReq;
+  filter?.addEventListener('input', () => renderList(filter.value.trim().toLowerCase()));
+
+  async function loadOrgs() {
     try {
-      const res  = await fetch(`/api/public/organisations/suggest?q=${encodeURIComponent(q)}`);
-      const rows = await res.json();
-      if (reqId !== currentReq) return; // réponse obsolète (requête plus récente déjà lancée)
-      renderSuggestions(rows);
-    } catch (_) { box.style.display = 'none'; }
+      const res  = await fetch('/api/public/organisations?all=1');
+      const data = await res.json();
+      allOrgs = data.orgs || [];
+      renderList('');
+    } catch (_) {
+      listEl.innerHTML = `<div class="lp-org-dropdown-empty">⚠️ Impossible de charger les organisations</div>`;
+    }
   }
 
-  function renderSuggestions(rows) {
+  function renderList(filterText) {
+    if (!allOrgs) return;
+    const rows = filterText
+      ? allOrgs.filter(o => o.LibOrg.toLowerCase().includes(filterText))
+      : allOrgs;
+
     if (!rows.length) {
-      box.innerHTML = `<div class="lp-org-sugg-empty">Aucune organisation trouvée</div>`;
-      box.style.display = 'block';
+      listEl.innerHTML = `<div class="lp-org-dropdown-empty">Aucune organisation trouvée</div>`;
       return;
     }
-    box.innerHTML = rows.map(o => `
-      <button type="button" class="lp-org-sugg-item" data-numagr="${o.NumAgr}">
-        <span class="lp-org-sugg-name">${o.LibOrg}</span>
-        <span class="lp-org-sugg-meta">${o.LibTypOrg || ''}${o.SiegeOrg ? ' · ' + o.SiegeOrg : ''}</span>
-      </button>
+    listEl.innerHTML = rows.map(o => `
+      <label class="lp-org-dropdown-item">
+        <input type="checkbox" data-numagr="${o.NumAgr}" ${selected.has(String(o.NumAgr)) ? 'checked' : ''}>
+        <span class="lp-org-dropdown-name">${o.LibOrg}</span>
+        <span class="lp-org-dropdown-meta">${o.TypeOrg || ''}${o.Ville ? ' · ' + o.Ville : ''}</span>
+      </label>
     `).join('');
-    box.style.display = 'block';
-    box.querySelectorAll('.lp-org-sugg-item').forEach(btn => {
-      btn.addEventListener('click', () => {
-        landingNav('adhesion', { mode: 'individu', numAgr: btn.dataset.numagr });
+
+    listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const numAgr = cb.dataset.numagr;
+        if (cb.checked) selected.set(numAgr, rows.find(o => String(o.NumAgr) === numAgr));
+        else selected.delete(numAgr);
+        updateSelectionUI();
       });
     });
   }
+
+  function updateSelectionUI() {
+    const n = selected.size;
+    countEl.textContent = `${n} sélectionnée${n > 1 ? 's' : ''}`;
+    contBtn.disabled = n === 0;
+    label.textContent = n === 0
+      ? "Choisir une ou plusieurs organisations déjà inscrites…"
+      : [...selected.values()].map(o => o?.LibOrg).filter(Boolean).join(', ');
+  }
+
+  contBtn?.addEventListener('click', () => {
+    if (!selected.size) return;
+    landingNav('adhesion', { mode: 'individu', numAgrs: [...selected.keys()].join(',') });
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════

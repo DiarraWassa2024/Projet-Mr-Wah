@@ -75,6 +75,7 @@ router.register('mon-organisation', async () => {
               🖼️ Changer le logo
               <input type="file" id="logoFileInput" accept=".jpg,.jpeg,.png,.webp,.svg" style="display:none">
             </label>
+            <button class="dp-btn" id="btnCarteOrg">🪪 Carte organisation</button>
             <button class="dp-btn" id="btnEditOrg">✏️ Modifier</button>
           </div>
         </div>
@@ -84,11 +85,30 @@ router.register('mon-organisation', async () => {
         <div id="orgEditWrap" style="padding:20px;display:none">
           ${editFormHtml(org)}
         </div>
+      </div>
+
+      <div class="dash-panel dash-full" style="margin-top:20px">
+        <div class="dp-head">
+          <div><div class="dp-title">🎯 Mes campagnes de dons</div><div class="dp-sub">Objectifs de collecte proposés aux donateurs</div></div>
+          <button class="dp-btn" id="btnAddCampagne">+ Nouvelle campagne</button>
+        </div>
+        <div id="campagnesWrap" style="padding:20px">Chargement…</div>
       </div>`;
+
+    loadCampagnes();
 
     document.getElementById('btnEditOrg').addEventListener('click', () => {
       document.getElementById('orgViewWrap').style.display = 'none';
       document.getElementById('orgEditWrap').style.display = 'block';
+    });
+
+    document.getElementById('btnCarteOrg').addEventListener('click', () => {
+      const token = localStorage.getItem('gpo_token');
+      const w = window.open('', '_blank', 'width=620,height=780');
+      fetch(`/api/organisations/${org.NumAgr}/carte`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.text())
+        .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
+        .catch(() => { w.close(); toast('Erreur lors de la génération de la carte', 'error'); });
     });
 
     document.getElementById('logoFileInput').addEventListener('change', async (e) => {
@@ -125,6 +145,101 @@ router.register('mon-organisation', async () => {
       document.getElementById('orgViewWrap').style.display = 'block';
       document.getElementById('orgEditWrap').style.display = 'none';
     });
+
+    document.getElementById('btnAddCampagne').addEventListener('click', () => openCampagneModal());
+  }
+
+  const CAMP_STATUT_CFG = {
+    'Active':    { cls: 'badge-blue',  icon: '🟢' },
+    'Clôturée':  { cls: 'badge-green', icon: '🏁' },
+    'Annulée':   { cls: 'badge-grey',  icon: '⛔' },
+  };
+
+  async function loadCampagnes() {
+    const wrap = document.getElementById('campagnesWrap');
+    if (!wrap) return;
+    try {
+      const rows = await api.get('/campagnes');
+      if (!rows.length) { wrap.innerHTML = `<p class="dt-empty">Aucune campagne créée pour le moment.</p>`; return; }
+      wrap.innerHTML = `<div class="ra-list">${rows.map(c => {
+        const st  = CAMP_STATUT_CFG[c.statut] || { cls: 'badge-grey', icon: '' };
+        const pct = c.objectifMontant ? Math.min(100, Math.round(c.montantCollecte / c.objectifMontant * 100)) : 0;
+        return `
+        <div class="ra-item" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${c.titre}</strong>
+            <span class="badge ${st.cls}">${st.icon} ${c.statut}</span>
+          </div>
+          <div class="don-campagne-bar"><div class="don-campagne-fill" style="width:${pct}%"></div></div>
+          <div class="don-campagne-label">${Number(c.montantCollecte).toLocaleString('fr-FR')} / ${Number(c.objectifMontant).toLocaleString('fr-FR')} XOF (${pct}%)</div>
+          ${c.statut === 'Active' ? `<button class="dp-btn" data-action="cloturer" data-id="${c.idCampagne}" style="align-self:flex-start">🏁 Clôturer</button>` : ''}
+        </div>`;
+      }).join('')}</div>`;
+
+      wrap.querySelectorAll('[data-action="cloturer"]').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm('Clôturer cette campagne ?')) return;
+          try { await api.put(`/campagnes/${btn.dataset.id}/statut`, { statut: 'Clôturée' }); loadCampagnes(); }
+          catch (e) { showToast(e.message, 'error'); }
+        };
+      });
+    } catch (err) {
+      wrap.innerHTML = `<p class="dt-empty">${err.message}</p>`;
+    }
+  }
+
+  function openCampagneModal() {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="campagneModal">
+        <div class="modal" style="max-width:440px">
+          <div class="modal-header">
+            <h3>+ Nouvelle campagne</h3>
+            <button class="modal-close" id="closeCampagneModal">×</button>
+          </div>
+          <div style="padding:20px">
+            <div class="form-group">
+              <label>Titre *</label>
+              <input type="text" id="campTitre" placeholder="Ex : Construction d'un puits">
+            </div>
+            <div class="form-group">
+              <label>Objectif (XOF) *</label>
+              <input type="number" id="campObjectif" min="1" placeholder="Ex : 500000">
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="campDescription" rows="2"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Début</label><input type="date" id="campDebut"></div>
+              <div class="form-group"><label>Fin</label><input type="date" id="campFin"></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-secondary" id="cancelCampagneModal">Annuler</button>
+              <button class="btn btn-primary" id="saveCampagneModal">Créer</button>
+            </div>
+          </div>
+        </div>
+      </div>`);
+
+    const close = () => document.getElementById('campagneModal')?.remove();
+    document.getElementById('closeCampagneModal').onclick  = close;
+    document.getElementById('cancelCampagneModal').onclick = close;
+    document.getElementById('saveCampagneModal').onclick = async () => {
+      const titre     = document.getElementById('campTitre').value.trim();
+      const objectif  = document.getElementById('campObjectif').value;
+      if (!titre || !objectif) { showToast('Titre et objectif requis', 'error'); return; }
+      try {
+        await api.post('/campagnes', {
+          titre, objectifMontant: Number(objectif),
+          description: document.getElementById('campDescription').value || null,
+          dateDebut: document.getElementById('campDebut').value || null,
+          dateFin: document.getElementById('campFin').value || null,
+        });
+        showToast('Campagne créée', 'success');
+        close();
+        loadCampagnes();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
   }
 
   function viewHtml(org) {

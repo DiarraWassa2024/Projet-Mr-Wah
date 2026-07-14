@@ -1,4 +1,3 @@
-const crypto                = require('crypto');
 const db                     = require('../config/database');
 const DemandeRepository      = require('../repositories/DemandeRepository');
 const AdherentRepository     = require('../repositories/AdherentRepository');
@@ -9,6 +8,9 @@ const AuthService            = require('./AuthService');
 const AuditService           = require('./AuditService');
 const emailSvc               = require('./email');
 const notificationSvc        = require('./notification');
+const NotificationService    = require('./NotificationService');
+const { fermerOrganisation, fermerAdherent } = require('./OrganisationLifecycleService');
+const { TAUX_REMBOURSEMENT_PCT } = require('../config/remboursement');
 const { nowISO, todayDate }  = require('../helpers/dateHelper');
 const PAYMENT_PROVIDERS      = require('../config/paymentProviders');
 
@@ -56,13 +58,52 @@ async function genererIdentifiantUnique(base) {
   for (let i = 0; i < 20; i++) {
     const [rows] = await db.execute('SELECT 1 FROM GPOTB_Users WHERE username = ?', [candidate]);
     if (!rows.length) return candidate;
-    candidate = `${base}${Math.floor(100 + Math.random() * 900)}`;
+    candidate = `${base}${Math.floor(10 + Math.random() * 90)}`;
   }
   throw new Error("Impossible de générer un identifiant de connexion unique");
 }
 
+/** Retire les accents/ponctuation, tout en minuscules, pour construire des identifiants lisibles. */
+const ACCENTS_RE = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g');
+function slugifier(s) {
+  return (s || '')
+    .normalize('NFD').replace(ACCENTS_RE, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+/** Identifiant d'organisation basé sur les initiales de son nom (ex. "Solidarité et Entraide" → "see"). */
+function baseIdentifiantOrganisation(nomOrg) {
+  const mots = slugifier(nomOrg).split(/\s+/).filter(Boolean);
+  if (mots.length <= 1) return (mots[0] || 'org').slice(0, 6);
+  return mots.map(m => m[0]).join('');
+}
+
+/** Identifiant d'adhérent basé sur son prénom et nom (ex. "Moussa Soude" → "msoude"). */
+function baseIdentifiantAdherent(prenom, nom) {
+  const p = slugifier(prenom).split(/\s+/).filter(Boolean)[0] || '';
+  const n = slugifier(nom).replace(/\s+/g, '');
+  return `${p[0] || ''}${n}` || 'adh';
+}
+
+// Mots simples (thème solidarité/nature) utilisés pour générer des mots de passe mémorisables
+// plutôt qu'une suite de caractères aléatoires illisible.
+const MOTS_MDP = [
+  'Soleil','Etoile','Riviere','Baobab','Colombe','Racine','Horizon','Lumiere','Village','Sourire',
+  'Recolte','Semence','Tresor','Panier','Chemin','Espoir','Union','Fleuve','Montagne','Prairie',
+  'Aurore','Foret','Perle','Corail','Jardin','Cascade','Vallee','Palmier','Etincelle','Ruche',
+  'Grenier','Sentier','Rosee','Brise','Nuage','Comete','Faucon','Gazelle','Antilope','Flamme',
+  'Boussole','Phare','Volcan','Oasis','Cocotier','Manguier','Tamtam','Griot','Caravane','Ecureuil',
+];
+
+/** Mot de passe mémorisable : deux mots + un nombre, unique et stable une fois envoyé. */
 function genererMotDePasse() {
-  return crypto.randomBytes(9).toString('base64url'); // ~12 caractères lisibles, URL-safe
+  const w1 = MOTS_MDP[Math.floor(Math.random() * MOTS_MDP.length)];
+  let w2 = MOTS_MDP[Math.floor(Math.random() * MOTS_MDP.length)];
+  while (w2 === w1) w2 = MOTS_MDP[Math.floor(Math.random() * MOTS_MDP.length)];
+  const n = Math.floor(100 + Math.random() * 900);
+  return `${w1}${w2}${n}`;
 }
 
 async function genererCodeConfirmationUnique() {
@@ -129,6 +170,7 @@ const DemandeService = {
         Profession:    demande.profession   || null,
         FonctionAdh:   demande.fonctionSouhaitee || null,
         Sexe:          demande.sexe         || null,
+        SituationMatrimoniale: demande.situationMatrimoniale || null,
         CodePays:      demande.codePays     || null,
         NumAdherent:   numAdherent,
       });
@@ -177,21 +219,35 @@ const DemandeService = {
     await DemandeRepository.accept(id, adminUser, now, current, dejaPayee ? 'Actif' : 'En attente de paiement');
 
     // Générer et envoyer les identifiants de connexion immédiatement (le paiement se fait après connexion)
-    const userBase = idAdhCible
-      ? ((await AdherentRepository.findByIdFull(idAdhCible)).NumAdherent || `adh${idAdhCible}`).toLowerCase()
-      : numAgrCible.toLowerCase().replace(/[^a-z0-9]/g, '');
     const role = idAdhCible ? 'adherent' : 'gestionnaire';
 
-    let username = null, password = null;
-    const existingUser = await UserRepository.findByEmail(demande.emailOrg);
-    if (!existingUser && demande.emailOrg) {
-      username = await genererIdentifiantUnique(userBase);
-      password = genererMotDePasse();
-      const passwordHash = await AuthService.hashPassword(password);
-      await UserRepository.create({
-        username, email: demande.emailOrg, passwordHash, role, isActive: 1,
-        NumAgr: numAgrCible || null, idAdh: idAdhCible || null,
-      });
+    // Un email n'est utilisable qu'une seule fois sur la plateforme (contrainte UNIQUE en base) :
+    // chaque organisation/adhérent a donc un compte permanent et unique, dont l'identifiant et le
+    // mot de passe — communiqués une seule fois par email — ne sont plus jamais régénérés. Si ce
+    // point est atteint pour un email déjà lié à un compte (ne devrait pas arriver, la soumission
+    // publique le bloque en amont), on réutilise ce compte sans le modifier plutôt que d'échouer.
+    let username = null, password = null, idUserCible = null;
+    if (demande.emailOrg) {
+      const existingUser = await UserRepository.findByEmail(demande.emailOrg);
+      if (existingUser) {
+        idUserCible = existingUser.idUser;
+      } else {
+        let userBase;
+        if (idAdhCible) {
+          const adh = await AdherentRepository.findByIdFull(idAdhCible);
+          userBase = baseIdentifiantAdherent(adh.PrenAdh, adh.NomAdh);
+        } else {
+          userBase = baseIdentifiantOrganisation(demande.nomOrg);
+        }
+        username = await genererIdentifiantUnique(userBase);
+        password = genererMotDePasse();
+        const passwordHash = await AuthService.hashPassword(password);
+        const userResult = await UserRepository.create({
+          username, email: demande.emailOrg, passwordHash, role, isActive: 1,
+          NumAgr: numAgrCible || null, idAdh: idAdhCible || null,
+        });
+        idUserCible = userResult.insertId;
+      }
     }
 
     const mailResult = await emailSvc.sendMail(
@@ -213,9 +269,21 @@ const DemandeService = {
 
     await AuditService.log('ACCEPTER_DEMANDE', null, {
       table: 'SD_DemandeAdhesion', id: demande.idDemande,
-      details: `Organisation: ${demande.nomOrg} | ${dejaPayee ? 'Cotisation déjà réglée — activée' : 'En attente de paiement'} | Identifiants: ${username ? 'créés' : 'compte existant'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
+      details: `Organisation: ${demande.nomOrg} | ${dejaPayee ? 'Cotisation déjà réglée — activée' : 'En attente de paiement'} | Identifiants: ${username ? 'créés (compte dédié)' : 'aucun email fourni'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'} | SMS/WhatsApp: ${smsResult.ok ? 'envoyé' : 'échec'}`,
       user: adminUser,
     });
+
+    if (idUserCible) {
+      await NotificationService.notifier({
+        idUser: idUserCible,
+        titre: '🎉 Demande d\'adhésion acceptée',
+        contenu: dejaPayee
+          ? `Votre compte pour "${demande.nomOrg}" est actif.`
+          : `Votre demande pour "${demande.nomOrg}" est acceptée — réglez votre cotisation pour activer votre compte.`,
+        type: 'demande',
+        lien: dejaPayee ? '/dashboard' : '/paiements',
+      });
+    }
 
     return {
       message: dejaPayee ? 'Demande acceptée — compte activé (cotisation déjà réglée)' : 'Demande acceptée — identifiants envoyés par email',
@@ -288,6 +356,118 @@ const DemandeService = {
     return { message: 'Demande refusée', emailSent: mailResult.ok };
   },
 
+  /**
+   * Rejet pour document justificatif (agrément ministériel) jugé non authentique par l'admin
+   * après vérification. Contrairement à refuse(), fonctionne à n'importe quel stade — y compris
+   * après acceptation et paiement — puisqu'une fraude peut être découverte a posteriori. Aucun
+   * remboursement n'est jamais déclenché ici : le paiement reste tel quel (statut inchangé),
+   * conformément à l'avertissement donné à l'organisation/l'adhérent au moment du paiement.
+   */
+  async rejeterDocumentInvalide(id, adminUser, motif) {
+    if (!motif || !motif.trim())
+      throw Object.assign(new Error("Le motif est obligatoire pour un rejet pour document non authentique"), { status: 400 });
+
+    const demande = await DemandeRepository.findById(id);
+    if (!demande) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+
+    const current = demande.statutAdhesion || 'En attente de validation';
+    const ETATS_TERMINAUX = ['Refusé', 'Radié', 'Exclu', 'Démissionnaire'];
+    if (ETATS_TERMINAUX.includes(current))
+      throw Object.assign(new Error(`La demande a déjà un statut définitif : ${current}`), { status: 400 });
+
+    const now = nowISO();
+
+    // Retrouve l'organisation/l'adhérent éventuellement déjà créé(e) pour cette demande, et si
+    // sa cotisation a déjà été réglée — via le paiement d'adhésion, seul lien fiable vers idAdh/
+    // NumAgr (la demande elle-même ne les conserve pas après acceptation).
+    const [[paiement]] = await db.execute(
+      `SELECT idAdh, NumAgr, Statut FROM GPOTB08_Paiement WHERE idDemande = ? ORDER BY IdPaiement DESC LIMIT 1`,
+      [demande.idDemande]
+    );
+    const dejaReglee = !!(paiement && paiement.Statut === 'Payé');
+
+    await DemandeRepository.refuse(id, adminUser, now, motif, current);
+
+    if (paiement?.idAdh)          await fermerAdherent(paiement.idAdh);
+    else if (paiement?.NumAgr)    await fermerOrganisation(paiement.NumAgr);
+
+    const motifComplet = dejaReglee
+      ? `${motif} Aucun remboursement ne sera effectué, conformément aux conditions communiquées lors du paiement de la cotisation.`
+      : motif;
+    const mailResult = await emailSvc.sendMail(emailSvc.emailRefusee(demande, motifComplet));
+
+    await AuditService.log('REJETER_DOCUMENT_INVALIDE', null, {
+      table: 'SD_DemandeAdhesion', id: demande.idDemande,
+      details: `${demande.nomOrg} | Document jugé non authentique | Motif: ${motif} | Paiement: ${dejaReglee ? 'conservé (aucun remboursement)' : 'aucun'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'}`,
+      user: adminUser,
+    });
+
+    return { message: 'Rejetée pour document non authentique — aucun remboursement effectué', emailSent: mailResult.ok };
+  },
+
+  /**
+   * Refus volontaire de l'admin pour un motif autre qu'un document non authentique (le document
+   * reste valide) : contrairement à rejeterDocumentInvalide(), si la cotisation a déjà été
+   * réglée, un remboursement de TAUX_REMBOURSEMENT_PCT % est exécuté immédiatement (pas d'offre
+   * à accepter — c'est l'admin qui refuse, pas le demandeur qui se rétracte). Fonctionne à
+   * n'importe quel stade, comme rejeterDocumentInvalide().
+   */
+  async refuserAvecRemboursement(id, adminUser, motif) {
+    if (!motif || !motif.trim())
+      throw Object.assign(new Error('Le motif est obligatoire pour ce refus'), { status: 400 });
+
+    const demande = await DemandeRepository.findById(id);
+    if (!demande) throw Object.assign(new Error('Demande introuvable'), { status: 404 });
+
+    const current = demande.statutAdhesion || 'En attente de validation';
+    const ETATS_TERMINAUX = ['Refusé', 'Radié', 'Exclu', 'Démissionnaire'];
+    if (ETATS_TERMINAUX.includes(current))
+      throw Object.assign(new Error(`La demande a déjà un statut définitif : ${current}`), { status: 400 });
+
+    const now = nowISO();
+    const [[paiement]] = await db.execute(
+      `SELECT IdPaiement, idAdh, NumAgr, Statut, MontantPaiement, CodeDevise FROM GPOTB08_Paiement
+       WHERE idDemande = ? ORDER BY IdPaiement DESC LIMIT 1`,
+      [demande.idDemande]
+    );
+    const dejaReglee = !!(paiement && paiement.Statut === 'Payé');
+    const montantOffert = dejaReglee ? Math.round(paiement.MontantPaiement * TAUX_REMBOURSEMENT_PCT / 100) : 0;
+
+    await DemandeRepository.refuse(id, adminUser, now, motif, current);
+
+    if (dejaReglee) {
+      const [[admin]] = await db.execute(`SELECT idUser FROM GPOTB_Users WHERE username = ?`, [adminUser]);
+      await db.execute(
+        `INSERT INTO SD_Remboursement (idPaiement, numAgr, idAdh, montantRembourse, montantOffert, motif, statut, idValidateur, dateTraitement)
+         VALUES (?, ?, ?, ?, ?, ?, 'Effectué', ?, ?)`,
+        [paiement.IdPaiement, paiement.NumAgr || null, paiement.idAdh || null, paiement.MontantPaiement, montantOffert, motif, admin?.idUser || null, now]
+      );
+      await PaiementRepository.update(paiement.IdPaiement, { Statut: 'Remboursé' });
+    }
+
+    if (paiement?.idAdh)          await fermerAdherent(paiement.idAdh);
+    else if (paiement?.NumAgr)    await fermerOrganisation(paiement.NumAgr);
+
+    const motifComplet = dejaReglee
+      ? `${motif} ${montantOffert.toLocaleString('fr-FR')} ${paiement.CodeDevise || ''} (${TAUX_REMBOURSEMENT_PCT}% de votre cotisation) vous seront remboursés sous peu.`
+      : motif;
+    const mailResult = await emailSvc.sendMail(emailSvc.emailRefusee(demande, motifComplet));
+
+    await AuditService.log('REFUSER_DEMANDE_AVEC_REMBOURSEMENT', null, {
+      table: 'SD_DemandeAdhesion', id: demande.idDemande,
+      details: `${demande.nomOrg} | Refus volontaire (document valide) | Motif: ${motif} | Remboursement: ${dejaReglee ? montantOffert + ' (' + TAUX_REMBOURSEMENT_PCT + '%)' : 'aucun paiement'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'}`,
+      user: adminUser,
+    });
+
+    return {
+      message: dejaReglee
+        ? `Rejetée — remboursement de ${TAUX_REMBOURSEMENT_PCT}% effectué (${montantOffert.toLocaleString('fr-FR')})`
+        : 'Rejetée',
+      emailSent: mailResult.ok,
+      montantOffert,
+    };
+  },
+
   async changeStatut(id, nouveauStatut, adminUser, commentaire) {
     if (!STATUTS_MANUELS.includes(nouveauStatut))
       throw Object.assign(new Error(`Statut invalide : ${nouveauStatut}`), { status: 400 });
@@ -312,6 +492,23 @@ const DemandeService = {
     });
 
     return { message: `Statut changé en "${nouveauStatut}"`, ...result };
+  },
+
+  /**
+   * Un email ne peut servir qu'à une seule inscription sur la plateforme (compte permanent et
+   * unique). À appeler à la soumission d'une demande (adhésion individu/organisation) pour
+   * rejeter tout de suite un email déjà pris — par un compte existant ou une demande encore en
+   * attente — plutôt que de laisser l'admin tomber sur un conflit au moment de l'acceptation.
+   */
+  async emailDejaUtilise(email) {
+    if (!email) return false;
+    const [[userRow]] = await db.execute('SELECT 1 FROM GPOTB_Users WHERE email = ?', [email]);
+    if (userRow) return true;
+    const [[demandeRow]] = await db.execute(
+      `SELECT 1 FROM SD_DemandeAdhesion WHERE emailOrg = ? AND statutAdhesion = 'En attente de validation'`,
+      [email]
+    );
+    return !!demandeRow;
   },
 };
 

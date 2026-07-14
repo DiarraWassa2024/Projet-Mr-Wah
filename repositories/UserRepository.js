@@ -15,11 +15,12 @@ class UserRepository extends BaseRepository {
     );
   }
 
+  /** Un email est UNIQUE en base, actif ou non — on vérifie donc toutes les lignes, pas seulement les actives. */
   async findByEmail(email) {
-    return this.queryOne('SELECT * FROM GPOTB_Users WHERE email = ? AND isActive = 1', [email]);
+    return this.queryOne('SELECT * FROM GPOTB_Users WHERE email = ?', [email]);
   }
 
-  /** Résout un identifiant de connexion — accepte soit le username, soit l'email. */
+  /** Résout un identifiant de connexion — accepte soit le username, soit l'email (tous deux uniques). */
   async findByLogin(identifiant) {
     return this.queryOne(
       'SELECT * FROM GPOTB_Users WHERE (username = ? OR email = ?) AND isActive = 1',

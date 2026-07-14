@@ -57,7 +57,7 @@ async function renderPaymentWidget(container, { codePays, montant, idPaiement, a
         <div class="pw-operators">
           ${cfg.operateurs.map(o => `
             <button type="button" class="pw-op-btn${o.code === selected ? ' pw-op-active' : ''}" data-code="${o.code}">
-              <span class="pw-op-icon">${o.icon}</span><span>${o.label}</span>
+              <span class="pw-op-icon">${typeof paymentLogo === 'function' && paymentLogo(o.code) || o.icon}</span><span>${o.label}</span>
             </button>`).join('')}
         </div>
         <div class="pw-form-group">

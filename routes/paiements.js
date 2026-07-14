@@ -300,4 +300,8 @@ function buildEmailPaiement(p, event) {
   };
 }
 
+// Exposé pour réutilisation par routes/remboursements.js (même email que le changement de
+// statut manuel côté paiements — pas de nouveau template à dupliquer).
+router.envoyerEmailPaiement = envoyerEmailPaiement;
+
 module.exports = router;

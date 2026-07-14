@@ -19,24 +19,28 @@ function abbrevOrg(nom) {
 
 /**
  * @param {object} opts
- *   type: 'adherent' | 'beneficiaire'
+ *   type: 'adherent' | 'beneficiaire' | 'organisation'
  *   orgName, roleLabel (fonction/rôle pour l'adhérent, "Bénéficiaire · LienParente" pour l'autre)
- *   idCode (NumAdherent / NumBenef), nom, prenom, dateNaissance, sexe, lieuNaissance
+ *   idCode (NumAdherent / NumBenef / NumAgr), nom, prenom, dateNaissance, sexe, lieuNaissance
  *   lienAdherent (pour bénéficiaire uniquement : "Nom Prénom (NumAdherent)")
+ *   typeOrg, pays, siege, representant (pour organisation uniquement)
  *   photoUrl, initiales, qrDataUrl
  *   dateEtablissement, dateExpiration
  */
 function buildCarteOfficielle(opts) {
   const {
     type, orgName, orgLogoUrl, roleLabel, idCode, nom, prenom, dateNaissance, sexe, lieuNaissance,
-    lienAdherent, photoUrl, initiales, qrDataUrl, dateEtablissement, dateExpiration,
+    lienAdherent, typeOrg, pays, siege, representant,
+    photoUrl, initiales, qrDataUrl, dateEtablissement, dateExpiration,
   } = opts;
 
   const isAdh = type === 'adherent';
+  const isOrg = type === 'organisation';
   const orgAbbrev = abbrevOrg(orgName);
-  const pillLabel = isAdh ? "CARTE D'ADHÉSION" : 'CARTE DE BÉNÉFICIAIRE';
-  const titleBand = isAdh ? "CARTE D'ADHÉRENT OFFICIELLE" : 'CARTE DE BÉNÉFICIAIRE OFFICIELLE';
-  const pageTitle = isAdh ? 'Carte d\'adhérent' : 'Carte de bénéficiaire';
+  const pillLabel = isOrg ? "CARTE D'ORGANISATION" : isAdh ? "CARTE D'ADHÉSION" : 'CARTE DE BÉNÉFICIAIRE';
+  const titleBand = isOrg ? "CARTE D'ORGANISATION OFFICIELLE" : isAdh ? "CARTE D'ADHÉRENT OFFICIELLE" : 'CARTE DE BÉNÉFICIAIRE OFFICIELLE';
+  const pageTitle = isOrg ? 'Carte d\'organisation' : isAdh ? 'Carte d\'adhérent' : 'Carte de bénéficiaire';
+  const photoBadgeLabel = isOrg ? (photoUrl ? '✓ Logo enregistré' : 'Logo non fourni') : (photoUrl ? '✓ Photo enregistrée' : 'Photo non fournie');
 
   const photoHtml = photoUrl
     ? `<img src="${esc(photoUrl)}" class="cf-photo" alt="photo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
@@ -49,7 +53,13 @@ function buildCarteOfficielle(opts) {
       <span class="cf-field-val">${esc(value) || '—'}</span>
     </div>`;
 
-  const identityFields = isAdh ? `
+  const identityFields = isOrg ? `
+      ${fieldRow('Organisation', nom)}
+      ${fieldRow('Type', typeOrg)}
+      ${fieldRow('Pays', pays)}
+      ${fieldRow('Siège', siege)}
+      ${fieldRow('Représentant', representant)}
+    ` : isAdh ? `
       ${fieldRow('Nom', nom)}
       ${fieldRow('Prénom', prenom)}
       ${fieldRow('Naissance', fmtDate(dateNaissance))}
@@ -62,6 +72,9 @@ function buildCarteOfficielle(opts) {
       ${fieldRow('Lien de parenté', roleLabel)}
       ${fieldRow('Adhérent responsable', lienAdherent)}
     `;
+
+  const sigLabel  = isOrg ? 'Certifiée par la plateforme' : 'Signature du président';
+  const sigScript = isOrg ? 'SoliDev' : 'Le Président';
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -151,7 +164,7 @@ function buildCarteOfficielle(opts) {
           <div class="cf-hd-icon">${orgLogoUrl ? `<img src="${esc(orgLogoUrl)}" alt="${esc(orgName)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">` : esc(orgAbbrev[0] || 'S')}</div>
           <div>
             <div class="cf-hd-org">${esc(orgAbbrev)}</div>
-            ${isAdh ? `<div class="cf-hd-role">${esc(roleLabel || 'Membre')}</div>` : ''}
+            ${isOrg ? `<div class="cf-hd-role">${esc(typeOrg || 'Organisation')}</div>` : isAdh ? `<div class="cf-hd-role">${esc(roleLabel || 'Membre')}</div>` : ''}
           </div>
         </div>
         <div class="cf-hd-pill">${pillLabel}</div>
@@ -166,7 +179,7 @@ function buildCarteOfficielle(opts) {
         </div>
         <div class="cf-right">
           ${photoHtml}
-          <div class="cf-photo-badge">${photoUrl ? '✓ Photo enregistrée' : 'Photo non fournie'}</div>
+          <div class="cf-photo-badge">${photoBadgeLabel}</div>
         </div>
       </div>
 
@@ -186,8 +199,8 @@ function buildCarteOfficielle(opts) {
           </div>
         </div>
         <div class="cf-sig">
-          <div class="cf-sig-label">Signature du président</div>
-          <div class="cf-sig-script">Le Président</div>
+          <div class="cf-sig-label">${esc(sigLabel)}</div>
+          <div class="cf-sig-script">${esc(sigScript)}</div>
           <div class="cf-sig-org"><img src="/images/logo.svg" alt="SoliDev" style="width:14px;height:14px;vertical-align:middle;border-radius:3px;margin-right:3px"> SOLIDEV</div>
         </div>
       </div>

@@ -452,10 +452,104 @@ module.exports = function initSchema() {
     numAgr       TEXT    REFERENCES GPOTB01_Organisation(NumAgr),
     modePaiement TEXT    DEFAULT 'mobile_money',
     reference    TEXT,
+    -- Répartition don direct-organisation / commission plateforme, figée au moment du don
+    -- (indépendante d'une évolution ultérieure du taux de commission) :
+    tauxCommission     REAL DEFAULT 20,
+    montantOrg         REAL,
+    montantPlateforme  REAL,
     anonyme      INTEGER NOT NULL DEFAULT 0 CHECK(anonyme IN (0,1)),
     statut       TEXT    NOT NULL DEFAULT 'Reçu'
                          CHECK(statut IN ('Reçu','Validé','Remboursé','Annulé')),
     dateDon      TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Remboursement — rétractation après paiement déjà effectué (adhérent ou organisation)
+  CREATE TABLE IF NOT EXISTS SD_Remboursement (
+    idRemboursement  INTEGER PRIMARY KEY AUTOINCREMENT,
+    idPaiement       INTEGER NOT NULL REFERENCES GPOTB08_Paiement(IdPaiement),
+    numAgr           TEXT    REFERENCES GPOTB01_Organisation(NumAgr),
+    idAdh            INTEGER REFERENCES GPOTB02_Adherent(idAdh),
+    montantRembourse REAL    NOT NULL,
+    -- Montant réellement proposé au demandeur (taux de remboursement partiel — voir
+    -- config/remboursement.js), calculé quand l'admin approuve la demande. Le remboursement
+    -- n'est effectué que si le demandeur accepte explicitement cette offre.
+    montantOffert    REAL,
+    motif            TEXT,
+    statut           TEXT    NOT NULL DEFAULT 'En attente'
+                             CHECK(statut IN ('En attente','Approuvé','Effectué','Rejeté')),
+    idValidateur     INTEGER REFERENCES GPOTB_Users(idUser),
+    dateDemande      TEXT    NOT NULL DEFAULT (datetime('now')),
+    dateTraitement   TEXT
+  );
+
+  -- Dettes d'un adhérent envers son organisation (cotisation impayée, avance...)
+  CREATE TABLE IF NOT EXISTS SD_DetteAdherent (
+    idDette        INTEGER PRIMARY KEY AUTOINCREMENT,
+    idAdh          INTEGER NOT NULL REFERENCES GPOTB02_Adherent(idAdh),
+    numAgr         TEXT    NOT NULL REFERENCES GPOTB01_Organisation(NumAgr),
+    montantDette   REAL    NOT NULL,
+    montantRestant REAL    NOT NULL,
+    motif          TEXT,
+    dateEcheance   TEXT,
+    statut         TEXT    NOT NULL DEFAULT 'En cours' CHECK(statut IN ('En cours','Réglée','En retard')),
+    dateCreation   TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Historique des remboursements partiels d'une dette
+  CREATE TABLE IF NOT EXISTS SD_RemboursementDette (
+    idRembDette  INTEGER PRIMARY KEY AUTOINCREMENT,
+    idDette      INTEGER NOT NULL REFERENCES SD_DetteAdherent(idDette),
+    montant      REAL    NOT NULL,
+    commentaire  TEXT,
+    dateRemb     TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Centre de notifications internes (indépendant des emails, journalisés dans SD_EmailLog)
+  CREATE TABLE IF NOT EXISTS SD_Notification (
+    idNotification INTEGER PRIMARY KEY AUTOINCREMENT,
+    idUser         INTEGER NOT NULL REFERENCES GPOTB_Users(idUser),
+    titre          TEXT    NOT NULL,
+    contenu        TEXT,
+    type           TEXT    CHECK(type IN ('demande','paiement','don','remboursement','dette','systeme')),
+    lien           TEXT,
+    lu             INTEGER NOT NULL DEFAULT 0 CHECK(lu IN (0,1)),
+    dateEnvoi      TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Campagnes de dons — objectif de collecte porté par une organisation
+  CREATE TABLE IF NOT EXISTS SD_CampagneDon (
+    idCampagne      INTEGER PRIMARY KEY AUTOINCREMENT,
+    numAgr          TEXT    NOT NULL REFERENCES GPOTB01_Organisation(NumAgr),
+    titre           TEXT    NOT NULL,
+    description     TEXT,
+    objectifMontant REAL    NOT NULL,
+    montantCollecte REAL    NOT NULL DEFAULT 0,
+    dateDebut       TEXT,
+    dateFin         TEXT,
+    statut          TEXT    NOT NULL DEFAULT 'Active' CHECK(statut IN ('Active','Clôturée','Annulée')),
+    dateCreation    TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- Actualités (plateforme ou par organisation)
+  CREATE TABLE IF NOT EXISTS SD_Actualite (
+    idActu          INTEGER PRIMARY KEY AUTOINCREMENT,
+    titre           TEXT    NOT NULL,
+    contenu         TEXT    NOT NULL,
+    numAgr          TEXT    REFERENCES GPOTB01_Organisation(NumAgr),
+    idAuteur        INTEGER REFERENCES GPOTB_Users(idUser),
+    image           TEXT,
+    statut          TEXT    NOT NULL DEFAULT 'Publiée' CHECK(statut IN ('Publiée','Brouillon')),
+    datePublication TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- FAQ publique
+  CREATE TABLE IF NOT EXISTS SD_FAQ (
+    idFAQ     INTEGER PRIMARY KEY AUTOINCREMENT,
+    question  TEXT    NOT NULL,
+    reponse   TEXT    NOT NULL,
+    categorie TEXT,
+    ordre     INTEGER NOT NULL DEFAULT 0,
+    actif     INTEGER NOT NULL DEFAULT 1 CHECK(actif IN (0,1))
   );
 
   -- Journal d'activité (piste d'audit)
@@ -606,6 +700,11 @@ module.exports = function initSchema() {
     `ALTER TABLE SD_Don ADD COLUMN codeDevise TEXT`,
     `ALTER TABLE SD_Don ADD COLUMN numAgr TEXT`,
     `ALTER TABLE SD_Don ADD COLUMN reference TEXT`,
+    `ALTER TABLE SD_Don ADD COLUMN tauxCommission REAL DEFAULT 20`,
+    `ALTER TABLE SD_Don ADD COLUMN montantOrg REAL`,
+    `ALTER TABLE SD_Don ADD COLUMN montantPlateforme REAL`,
+    `ALTER TABLE SD_Don ADD COLUMN idCampagne INTEGER REFERENCES SD_CampagneDon(idCampagne)`,
+    `ALTER TABLE SD_Remboursement ADD COLUMN montantOffert REAL`,
     // GPOTB03_Pays — nouvelles colonnes pays complets
     `ALTER TABLE GPOTB03_Pays ADD COLUMN Langue TEXT`,
     `ALTER TABLE GPOTB03_Pays ADD COLUMN CodeDevise TEXT`,
@@ -658,6 +757,7 @@ module.exports = function initSchema() {
       dateEnvoi    TEXT DEFAULT (datetime('now')),
       statut       TEXT DEFAULT 'envoyé',
       erreur       TEXT,
+      reponseSMTP  TEXT,
       idAdh        INTEGER REFERENCES GPOTB02_Adherent(idAdh)
     )`,
     // Rôles — enrichissement GPOTB11_Role (DEFAULT simple, pas d'expression)
@@ -733,10 +833,13 @@ module.exports = function initSchema() {
     `ALTER TABLE SD_DemandeAdhesion ADD COLUMN profession        TEXT`,
     `ALTER TABLE SD_DemandeAdhesion ADD COLUMN ville             TEXT`,
     `ALTER TABLE SD_DemandeAdhesion ADD COLUMN fonctionSouhaitee TEXT`,
+    `ALTER TABLE SD_DemandeAdhesion ADD COLUMN situationMatrimoniale TEXT`,
+    `ALTER TABLE SD_EmailLog ADD COLUMN reponseSMTP TEXT`,
     // Organisation — sexe du déclarant / représentant légal
     `ALTER TABLE SD_DemandeAdhesion ADD COLUMN repSexe           TEXT`,
     // GPOTB02_Adherent — sexe de l'adhérent (texte direct : Homme / Femme)
     `ALTER TABLE GPOTB02_Adherent ADD COLUMN Sexe TEXT`,
+    `ALTER TABLE GPOTB02_Adherent ADD COLUMN SituationMatrimoniale TEXT`,
     // ── Système de statuts d'adhésion (v3) ──────────────────────
     // Nouveau cycle de vie : En attente de validation → Actif / Refusé → Suspendu / Radié / Exclu / Démissionnaire
     `ALTER TABLE SD_DemandeAdhesion ADD COLUMN statutAdhesion TEXT DEFAULT 'En attente de validation'`,
@@ -812,6 +915,84 @@ module.exports = function initSchema() {
   }
 
   // ============================================================
+  // MIGRATION GPOTB_Users v3 — email de nouveau UNIQUE, définitivement : un mail ne peut
+  // servir qu'à un seul compte sur toute la plateforme. L'identifiant et le mot de passe
+  // envoyés à la création de ce compte restent valables indéfiniment (jamais régénérés).
+  // ============================================================
+  try {
+    const usersSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='GPOTB_Users'`).get();
+    if (usersSql && !/email\s+TEXT\s+NOT\s+NULL\s+UNIQUE/i.test(usersSql.sql)) {
+      db.pragma('foreign_keys = OFF');
+      // Dédoublonnage défensif : si des comptes partagent déjà un email (créés pendant la
+      // fenêtre où l'email n'était pas unique), ne garder que le plus ancien.
+      const dups = db.prepare(`SELECT email FROM GPOTB_Users GROUP BY email HAVING COUNT(*) > 1`).all();
+      for (const d of dups) {
+        const rows = db.prepare(`SELECT idUser FROM GPOTB_Users WHERE email = ? ORDER BY idUser ASC`).all(d.email);
+        for (const r of rows.slice(1)) {
+          db.prepare(`DELETE FROM SD_Notification WHERE idUser = ?`).run(r.idUser);
+          db.prepare(`DELETE FROM GPOTB_UserGroupe WHERE idUser = ?`).run(r.idUser);
+          db.prepare(`DELETE FROM GPOTB_Users WHERE idUser = ?`).run(r.idUser);
+        }
+        console.log(`[Schema] Doublon d'email nettoyé : ${d.email} (${rows.length - 1} compte(s) en trop supprimé(s))`);
+      }
+      // legacy_alter_table évite que SQLite ne réécrive les REFERENCES GPOTB_Users(...) des
+      // AUTRES tables en GPOTB_Users_bak lors du RENAME (comportement par défaut depuis 3.25) —
+      // sans ça, ces tables pointeraient vers une table temporaire qu'on supprime juste après.
+      db.pragma('legacy_alter_table = ON');
+      db.exec(`ALTER TABLE GPOTB_Users RENAME TO GPOTB_Users_bak`);
+      db.exec(`CREATE TABLE GPOTB_Users (
+        idUser       INTEGER PRIMARY KEY AUTOINCREMENT,
+        username     TEXT NOT NULL UNIQUE,
+        email        TEXT NOT NULL UNIQUE,
+        passwordHash TEXT NOT NULL,
+        role         TEXT NOT NULL DEFAULT 'gestionnaire'
+                          CHECK(role IN ('admin','gestionnaire','adherent')),
+        isActive     INTEGER NOT NULL DEFAULT 1 CHECK(isActive IN (0,1)),
+        NumAgr       TEXT    REFERENCES GPOTB01_Organisation(NumAgr),
+        idAdh        INTEGER REFERENCES GPOTB02_Adherent(idAdh),
+        lastLoginAt  TEXT,
+        avatar       TEXT,
+        createdAt    TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      db.exec(`INSERT INTO GPOTB_Users
+        (idUser, username, email, passwordHash, role, isActive, NumAgr, idAdh, lastLoginAt, avatar, createdAt)
+        SELECT idUser, username, email, passwordHash, role, isActive, NumAgr, idAdh, lastLoginAt, avatar, createdAt
+        FROM GPOTB_Users_bak`);
+      db.exec(`DROP TABLE GPOTB_Users_bak`);
+      db.pragma('legacy_alter_table = OFF');
+      db.pragma('foreign_keys = ON');
+    }
+  } catch(e) {
+    try { db.pragma('legacy_alter_table = OFF'); db.pragma('foreign_keys = ON'); } catch(_) {}
+    console.error('[Schema] Migration GPOTB_Users v3:', e.message);
+  }
+
+  // Réparation d'une éventuelle exécution antérieure de la migration ci-dessus (avant l'ajout de
+  // legacy_alter_table) : certaines tables ont pu voir leurs REFERENCES GPOTB_Users réécrites en
+  // GPOTB_Users_bak puis pointer dans le vide une fois cette table temporaire supprimée.
+  try {
+    const corrompues = db.prepare(
+      `SELECT name, sql FROM sqlite_master WHERE type='table' AND sql LIKE '%GPOTB_Users_bak%'`
+    ).all();
+    if (corrompues.length) {
+      // UPDATE direct sur sqlite_master : nécessite de désactiver le mode "defensive"
+      // (better-sqlite3 l'active par défaut) en plus de writable_schema.
+      db.unsafeMode(true);
+      db.pragma('writable_schema = ON');
+      const upd = db.prepare(`UPDATE sqlite_master SET sql = ? WHERE type='table' AND name = ?`);
+      for (const t of corrompues) {
+        upd.run(t.sql.replace(/"?GPOTB_Users_bak"?/g, 'GPOTB_Users'), t.name);
+      }
+      db.pragma('writable_schema = OFF');
+      db.unsafeMode(false);
+      console.log(`[Schema] Réparation références GPOTB_Users_bak → GPOTB_Users sur ${corrompues.length} table(s) : ${corrompues.map(t=>t.name).join(', ')}`);
+    }
+  } catch(e) {
+    try { db.pragma('writable_schema = OFF'); db.unsafeMode(false); } catch(_) {}
+    console.error('[Schema] Réparation GPOTB_Users_bak:', e.message);
+  }
+
+  // ============================================================
   // MIGRATION SD_LogActivite v2 — audit enrichi (IP, navigateur, module, userId)
   // ============================================================
   try {
@@ -859,6 +1040,18 @@ module.exports = function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_besoin_numAgr      ON SD_BesoinExprime(numAgr)`,
     `CREATE INDEX IF NOT EXISTS idx_besoin_priorite    ON SD_BesoinExprime(priorite)`,
     `CREATE INDEX IF NOT EXISTS idx_don_numAgr         ON SD_Don(numAgr)`,
+    `CREATE INDEX IF NOT EXISTS idx_remb_paiement       ON SD_Remboursement(idPaiement)`,
+    `CREATE INDEX IF NOT EXISTS idx_remb_statut         ON SD_Remboursement(statut)`,
+    `CREATE INDEX IF NOT EXISTS idx_dette_adh           ON SD_DetteAdherent(idAdh)`,
+    `CREATE INDEX IF NOT EXISTS idx_dette_org           ON SD_DetteAdherent(numAgr)`,
+    `CREATE INDEX IF NOT EXISTS idx_rembdette_dette     ON SD_RemboursementDette(idDette)`,
+    `CREATE INDEX IF NOT EXISTS idx_notif_user          ON SD_Notification(idUser)`,
+    `CREATE INDEX IF NOT EXISTS idx_notif_lu            ON SD_Notification(lu)`,
+    `CREATE INDEX IF NOT EXISTS idx_campagne_org        ON SD_CampagneDon(numAgr)`,
+    `CREATE INDEX IF NOT EXISTS idx_campagne_statut     ON SD_CampagneDon(statut)`,
+    `CREATE INDEX IF NOT EXISTS idx_actu_numAgr         ON SD_Actualite(numAgr)`,
+    `CREATE INDEX IF NOT EXISTS idx_actu_statut         ON SD_Actualite(statut)`,
+    `CREATE INDEX IF NOT EXISTS idx_faq_actif           ON SD_FAQ(actif)`,
     `CREATE INDEX IF NOT EXISTS idx_benef_idAdh         ON GPOTB06_Beneficiaire(idAdh)`,
     `CREATE INDEX IF NOT EXISTS idx_benef_numBenef      ON GPOTB06_Beneficiaire(NumBenef)`,
     `CREATE INDEX IF NOT EXISTS idx_adh_numAdherent    ON GPOTB02_Adherent(NumAdherent)`,
