@@ -194,6 +194,10 @@ function renderCartes(data, type) {
     </div>`;
 }
 
+// Même palette et même agencement que la carte officielle (helpers/carteTemplate.js) —
+// bandeau bleu ciel, corps blanc avec champs étiquetés à gauche et photo à droite, pied clair.
+const CARTE_OFFICIELLE_COL = { from: '#0284c7', to: '#38bdf8', icon: '#0c4a6e' };
+
 function renderCard(r, type) {
   const isAdh = type === 'adh';
   const nom    = isAdh ? r.NomAdh       : r.NomBenef;
@@ -201,8 +205,7 @@ function renderCard(r, type) {
   const num    = isAdh ? r.NumAdherent  : r.NumBenef;
   const org    = r.LibOrg || 'SoliDev';
   const statut = r.LibStatut || 'Actif';
-  const orgType = r.TypeOrg ? r.TypeOrg : r.LibOrg?.includes('ONG') ? 'ONG' : r.LibOrg?.includes('Mutuelle') ? 'Mutuelle' : 'Association';
-  const col = ORG_COLORS[orgType] || ORG_COLORS.default;
+  const col = CARTE_OFFICIELLE_COL;
   const initials = `${(nom||'?')[0]}${(prenom||'')[0]||''}`.toUpperCase();
   const photo = isAdh && r.Photo ? `/uploads/adherents/photos/${r.Photo}` : null;
   const dateStr = r.DateAdhesion ? new Date(r.DateAdhesion).toLocaleDateString('fr-FR',{month:'2-digit',year:'2-digit'}) : '--/--';
@@ -218,11 +221,10 @@ function renderCard(r, type) {
     <div class="imp-card" data-id="${idKey}">
 
       <!-- RECTO -->
-      <div class="imp-card-face imp-card-front"
-           style="background:linear-gradient(135deg,${col.from},${col.to})">
+      <div class="imp-card-face imp-card-front">
 
         <!-- Bandeau -->
-        <div class="imp-card-band">
+        <div class="imp-card-band" style="background:linear-gradient(135deg,${col.from},${col.to})">
           <img src="/images/logo.svg" class="imp-card-logo" alt="SoliDev">
           <div class="imp-card-org">${escH(org)}</div>
           <div class="imp-card-type-badge" style="background:rgba(255,255,255,.2)">
@@ -232,35 +234,36 @@ function renderCard(r, type) {
 
         <!-- Corps -->
         <div class="imp-card-body">
-          <div class="imp-card-photo">
-            ${photo
-              ? `<img src="${photo}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                 <div class="imp-card-initials" style="display:none">${initials}</div>`
-              : `<div class="imp-card-initials">${initials}</div>`
-            }
-          </div>
-          <div class="imp-card-info">
-            <div class="imp-card-name">${escH(nom)} ${escH(prenom)}</div>
-            <div class="imp-card-num">${escH(num||'—')}</div>
-            <div class="imp-card-statut" style="background:${col.badge};color:${col.badgeText}">
-              ${escH(statut)}
+          <div class="imp-card-idbox"><span>${escH(num||'—')}</span></div>
+          <div class="imp-card-content">
+            <div class="imp-card-fields">
+              <div class="imp-card-field"><span class="imp-card-field-label">Nom</span><strong>${escH(nom)}</strong></div>
+              <div class="imp-card-field"><span class="imp-card-field-label">Prénom</span><strong>${escH(prenom)}</strong></div>
+              <div class="imp-card-field"><span class="imp-card-field-label">Statut</span><strong>${escH(statut)}</strong></div>
+              <div class="imp-card-field"><span class="imp-card-field-label">Depuis</span><strong>${dateStr}</strong></div>
             </div>
-            <div class="imp-card-date">Depuis ${dateStr}</div>
+            <div class="imp-card-photo">
+              ${photo
+                ? `<img src="${photo}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                   <div class="imp-card-initials" style="display:none">${initials}</div>`
+                : `<div class="imp-card-initials">${initials}</div>`
+              }
+            </div>
           </div>
         </div>
 
         <!-- Pied -->
         <div class="imp-card-footer">
-          <div class="imp-card-validity">Valide jusqu'au ${validity}</div>
           <div class="imp-card-qr-mini" id="qrMini_${type}_${idKey}">
             <div class="imp-qr-loading">⬛</div>
           </div>
+          <div class="imp-card-validity">Valide jusqu'au<br><strong>${validity}</strong></div>
         </div>
       </div>
 
       <!-- VERSO -->
       <div class="imp-card-face imp-card-back">
-        <div class="imp-card-back-band" style="background:${col.from}">
+        <div class="imp-card-back-band" style="background:linear-gradient(135deg,${col.from},${col.to})">
           <div class="imp-card-back-stripe"></div>
         </div>
         <div class="imp-card-back-body">

@@ -28,8 +28,8 @@ router.register('db-admin', async () => {
         <div class="dash-panel" style="width:260px;flex-shrink:0;padding:12px;max-height:70vh;overflow-y:auto">
           <div style="font-weight:700;font-size:13px;color:#64748b;padding:4px 8px 10px">TABLES (${tables.length})</div>
           ${tables.map(t => `
-            <button class="dba-table-btn ${activeTable===t.name?'active':''}" data-name="${t.name}">
-              <span>${t.name}</span>
+            <button class="dba-table-btn ${activeTable===t.code?'active':''}" data-name="${t.code}">
+              <span>${t.code}</span>
               <span class="dba-count">${t.count ?? '—'}</span>
             </button>`).join('')}
           <div style="border-top:1px solid #e2e8f0;margin:10px 0"></div>
@@ -68,7 +68,7 @@ router.register('db-admin', async () => {
     const content = document.getElementById('dbaContent');
     content.innerHTML = `
       <div class="dp-head" style="margin-bottom:12px">
-        <div><div class="dp-title">${activeTable}</div><div class="dp-sub">${data.total} ligne(s) — page ${data.page}/${data.totalPages}</div></div>
+        <div><div class="dp-title">${esc(data.realName)}</div><div class="dp-sub">${activeTable} — ${data.total} ligne(s) — page ${data.page}/${data.totalPages}</div></div>
         <div style="display:flex;gap:8px">
           <button class="dp-btn" id="dbaPrev" ${data.page<=1?'disabled':''}>← Précédent</button>
           <button class="dp-btn" id="dbaNext" ${data.page>=data.totalPages?'disabled':''}>Suivant →</button>

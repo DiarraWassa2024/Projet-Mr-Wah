@@ -7,33 +7,44 @@ const { ok, badRequest, notFound, serverError } = require('../helpers/response')
 // Tout ce module est réservé à l'admin — équivalent d'un "phpMyAdmin" pour la base SQLite.
 router.use(auth, roles('admin'));
 
-// ── GET /api/db-admin/tables — liste des tables + nombre de lignes ─────
+// La liste des tables n'expose volontairement aucun nom réel (juste un code opaque + le nombre
+// de lignes) — impossible de deviner le contenu d'une table depuis la liste ou une capture
+// d'écran. Le nom réel n'est révélé que lorsqu'une table précise est ouverte (GET /tables/:code).
+// Le code est dérivé du rang alphabétique (stable tant que les tables ne changent pas).
+async function getSortedTableNames() {
+  const [tables] = await db.execute(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+  );
+  return tables.map(t => t.name);
+}
+function codeForIndex(i) { return `TBL-${String(i + 1).padStart(3, '0')}`; }
+
+// ── GET /api/db-admin/tables — liste des tables (codes opaques) + nombre de lignes ─
 router.get('/tables', async (req, res) => {
   try {
-    const [tables] = await db.execute(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
-    );
+    const names = await getSortedTableNames();
     const withCounts = [];
-    for (const t of tables) {
+    for (let i = 0; i < names.length; i++) {
       try {
-        const [[row]] = await db.execute(`SELECT COUNT(*) AS n FROM "${t.name}"`);
-        withCounts.push({ name: t.name, count: row.n });
+        const [[row]] = await db.execute(`SELECT COUNT(*) AS n FROM "${names[i]}"`);
+        withCounts.push({ code: codeForIndex(i), count: row.n });
       } catch (_) {
-        withCounts.push({ name: t.name, count: null });
+        withCounts.push({ code: codeForIndex(i), count: null });
       }
     }
     ok(res, withCounts);
   } catch (err) { serverError(res, err); }
 });
 
-// ── GET /api/db-admin/tables/:name — colonnes + lignes paginées ────────
-router.get('/tables/:name', async (req, res) => {
-  const name = req.params.name;
+// ── GET /api/db-admin/tables/:code — colonnes + lignes paginées (révèle le nom réel) ─
+router.get('/tables/:code', async (req, res) => {
+  const code = req.params.code;
   try {
-    const [tableCheck] = await db.execute(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name = ?`, [name]
-    );
-    if (!tableCheck.length) return notFound(res, 'Table introuvable');
+    const names = await getSortedTableNames();
+    const match = /^TBL-(\d+)$/.exec(code);
+    const idx   = match ? parseInt(match[1], 10) - 1 : -1;
+    const name  = names[idx];
+    if (!name) return notFound(res, 'Table introuvable');
 
     const [cols] = await db.execute(`PRAGMA table_info("${name}")`);
     const page   = Math.max(1, parseInt(req.query.page) || 1);
@@ -44,6 +55,7 @@ router.get('/tables/:name', async (req, res) => {
     const [rows] = await db.execute(`SELECT * FROM "${name}" LIMIT ? OFFSET ?`, [limit, offset]);
 
     ok(res, {
+      realName: name,
       columns: cols.map(c => c.name),
       rows, total, page, limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),

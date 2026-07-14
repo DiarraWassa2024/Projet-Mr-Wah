@@ -350,6 +350,10 @@ router.register('adhesion', async (params = {}) => {
                     <label>Ville</label>
                     <input type="text" name="ville" placeholder="Ex : Dakar, Abidjan…">
                   </div>
+                  <div class="form-group">
+                    <label>Nationalité</label>
+                    <input type="text" name="nationalite" placeholder="Ex : Ivoirienne, Sénégalaise…">
+                  </div>
                 </div>
                 <div class="form-row">
                   <div class="form-group">
@@ -724,6 +728,7 @@ router.register('adhesion', async (params = {}) => {
       dateNaiss:        fd.get('dateNaiss')         || '',
       sexe:             fd.get('sexe')              || '',
       ville:            (fd.get('ville')            || '').trim(),
+      nationalite:      (fd.get('nationalite')      || '').trim(),
       adresse:          (fd.get('adresse')          || '').trim(),
       numCNI:           (fd.get('numCNI')           || '').trim(),
       profession:       (fd.get('profession')       || '').trim(),

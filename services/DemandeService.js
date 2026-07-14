@@ -10,7 +10,7 @@ const emailSvc               = require('./email');
 const notificationSvc        = require('./notification');
 const NotificationService    = require('./NotificationService');
 const { fermerOrganisation, fermerAdherent } = require('./OrganisationLifecycleService');
-const { TAUX_REMBOURSEMENT_PCT } = require('../config/remboursement');
+const { getTauxRemboursementPct } = require('../config/remboursement');
 const { nowISO, todayDate }  = require('../helpers/dateHelper');
 const PAYMENT_PROVIDERS      = require('../config/paymentProviders');
 
@@ -172,6 +172,7 @@ const DemandeService = {
         Sexe:          demande.sexe         || null,
         SituationMatrimoniale: demande.situationMatrimoniale || null,
         CodePays:      demande.codePays     || null,
+        Nationalite:   demande.nationalite  || null,
         NumAdherent:   numAdherent,
       });
       idAdhCible = result.insertId;
@@ -408,7 +409,8 @@ const DemandeService = {
   /**
    * Refus volontaire de l'admin pour un motif autre qu'un document non authentique (le document
    * reste valide) : contrairement à rejeterDocumentInvalide(), si la cotisation a déjà été
-   * réglée, un remboursement de TAUX_REMBOURSEMENT_PCT % est exécuté immédiatement (pas d'offre
+   * réglée, un remboursement partiel (taux configurable, cf. config/remboursement.js) est
+   * exécuté immédiatement (pas d'offre
    * à accepter — c'est l'admin qui refuse, pas le demandeur qui se rétracte). Fonctionne à
    * n'importe quel stade, comme rejeterDocumentInvalide().
    */
@@ -431,7 +433,8 @@ const DemandeService = {
       [demande.idDemande]
     );
     const dejaReglee = !!(paiement && paiement.Statut === 'Payé');
-    const montantOffert = dejaReglee ? Math.round(paiement.MontantPaiement * TAUX_REMBOURSEMENT_PCT / 100) : 0;
+    const tauxRemboursementPct = getTauxRemboursementPct();
+    const montantOffert = dejaReglee ? Math.round(paiement.MontantPaiement * tauxRemboursementPct / 100) : 0;
 
     await DemandeRepository.refuse(id, adminUser, now, motif, current);
 
@@ -449,19 +452,19 @@ const DemandeService = {
     else if (paiement?.NumAgr)    await fermerOrganisation(paiement.NumAgr);
 
     const motifComplet = dejaReglee
-      ? `${motif} ${montantOffert.toLocaleString('fr-FR')} ${paiement.CodeDevise || ''} (${TAUX_REMBOURSEMENT_PCT}% de votre cotisation) vous seront remboursés sous peu.`
+      ? `${motif} ${montantOffert.toLocaleString('fr-FR')} ${paiement.CodeDevise || ''} (${tauxRemboursementPct}% de votre cotisation) vous seront remboursés sous peu.`
       : motif;
     const mailResult = await emailSvc.sendMail(emailSvc.emailRefusee(demande, motifComplet));
 
     await AuditService.log('REFUSER_DEMANDE_AVEC_REMBOURSEMENT', null, {
       table: 'SD_DemandeAdhesion', id: demande.idDemande,
-      details: `${demande.nomOrg} | Refus volontaire (document valide) | Motif: ${motif} | Remboursement: ${dejaReglee ? montantOffert + ' (' + TAUX_REMBOURSEMENT_PCT + '%)' : 'aucun paiement'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'}`,
+      details: `${demande.nomOrg} | Refus volontaire (document valide) | Motif: ${motif} | Remboursement: ${dejaReglee ? montantOffert + ' (' + tauxRemboursementPct + '%)' : 'aucun paiement'} | Email: ${mailResult.ok ? 'envoyé' : 'échec'}`,
       user: adminUser,
     });
 
     return {
       message: dejaReglee
-        ? `Rejetée — remboursement de ${TAUX_REMBOURSEMENT_PCT}% effectué (${montantOffert.toLocaleString('fr-FR')})`
+        ? `Rejetée — remboursement de ${tauxRemboursementPct}% effectué (${montantOffert.toLocaleString('fr-FR')})`
         : 'Rejetée',
       emailSent: mailResult.ok,
       montantOffert,
@@ -516,3 +519,6 @@ module.exports = DemandeService;
 module.exports.getFormulesCotisation = getFormulesCotisation;
 module.exports.deviseDuPays = deviseDuPays;
 module.exports.genererCodeConfirmationUnique = genererCodeConfirmationUnique;
+module.exports.genererIdentifiantUnique = genererIdentifiantUnique;
+module.exports.genererMotDePasse = genererMotDePasse;
+module.exports.baseIdentifiantOrganisation = baseIdentifiantOrganisation;

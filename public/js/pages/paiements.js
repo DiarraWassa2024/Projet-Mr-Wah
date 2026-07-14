@@ -382,7 +382,7 @@ router.register('paiements', async () => {
                 plateforme</strong> et ses adhérents seront prévenus par email.
               </div>` : ''}
             <p style="color:#64748b;font-size:13px;margin-bottom:12px">
-              Le montant réellement remboursé (si votre demande est acceptée) sera de ${TAUX_REMB_INFO}% du
+              Le montant réellement remboursé (si votre demande est acceptée) sera de <span id="rembTauxInfo">…</span>% du
               montant payé — vous devrez accepter explicitement cette offre.
             </p>
             <div class="form-group">
@@ -409,9 +409,11 @@ router.register('paiements', async () => {
         close();
       } catch (e) { showToast(e.message || 'Erreur', 'error'); }
     };
+    api.get('/public/taux').then(t => {
+      const el = document.getElementById('rembTauxInfo');
+      if (el) el.textContent = t.remboursementPct;
+    }).catch(() => {});
   }
-  const TAUX_REMB_INFO = 80; // aligné sur config/remboursement.js (TAUX_REMBOURSEMENT_PCT)
-
   /* ── Modal Nouveau/Modifier ──────────────────────────── */
   function openModal(p = {}) {
     const isEdit = !!p.IdPaiement;

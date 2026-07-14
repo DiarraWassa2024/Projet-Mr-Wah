@@ -5,7 +5,7 @@ const roles               = require('../middleware/roles');
 const PaiementRepository  = require('../repositories/PaiementRepository');
 const NotificationService = require('../services/NotificationService');
 const { fermerOrganisation } = require('../services/OrganisationLifecycleService');
-const { TAUX_REMBOURSEMENT_PCT } = require('../config/remboursement');
+const { getTauxRemboursementPct } = require('../config/remboursement');
 const { ok, badRequest, notFound, forbidden, serverError } = require('../helpers/response');
 
 // POST /api/remboursements — demande de remboursement (rétractation) sur un paiement déjà réglé
@@ -63,7 +63,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // PUT /api/remboursements/:id/approuver — admin uniquement : ne rembourse pas encore, calcule
-// et propose au demandeur une offre partielle (TAUX_REMBOURSEMENT_PCT % du montant payé) —
+// et propose au demandeur une offre partielle (taux configurable, cf. config/remboursement.js) —
 // c'est au demandeur d'accepter ou refuser cette offre (voir /accepter-offre, /refuser-offre).
 router.put('/:id/approuver', auth, roles('admin'), async (req, res) => {
   try {
@@ -71,14 +71,15 @@ router.put('/:id/approuver', auth, roles('admin'), async (req, res) => {
     if (!remb) return notFound(res, 'Demande introuvable');
     if (remb.statut !== 'En attente') return badRequest(res, 'Seule une demande en attente peut être approuvée');
 
-    const montantOffert = Math.round(remb.montantRembourse * TAUX_REMBOURSEMENT_PCT / 100);
+    const tauxRemboursementPct = getTauxRemboursementPct();
+    const montantOffert = Math.round(remb.montantRembourse * tauxRemboursementPct / 100);
     await db.execute(
       `UPDATE SD_Remboursement SET statut='Approuvé', montantOffert=?, idValidateur=?, dateTraitement=datetime('now') WHERE idRemboursement=?`,
       [montantOffert, req.user.idUser, req.params.id]
     );
     await notifierDemandeur(remb,
       '💬 Offre de remboursement disponible',
-      `Nous vous proposons de vous rembourser ${montantOffert.toLocaleString('fr-FR')} sur les ${remb.montantRembourse.toLocaleString('fr-FR')} initialement payés (${TAUX_REMBOURSEMENT_PCT}%). Rendez-vous sur votre espace pour accepter ou refuser cette offre.`
+      `Nous vous proposons de vous rembourser ${montantOffert.toLocaleString('fr-FR')} sur les ${remb.montantRembourse.toLocaleString('fr-FR')} initialement payés (${tauxRemboursementPct}%). Rendez-vous sur votre espace pour accepter ou refuser cette offre.`
     );
     ok(res, { message: 'Offre de remboursement envoyée au demandeur', montantOffert });
   } catch (err) { serverError(res, err); }

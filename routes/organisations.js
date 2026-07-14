@@ -7,12 +7,28 @@ const auth      = require('../middleware/auth');
 const roles     = require('../middleware/roles');
 const OrganisationRepository = require('../repositories/OrganisationRepository');
 const PurgeService = require('../services/PurgeService');
+const UserRepository = require('../repositories/UserRepository');
+const AuthService    = require('../services/AuthService');
+const DemandeService = require('../services/DemandeService');
+const emailSvc       = require('../services/email');
+const db             = require('../config/database');
 const { ok, created, notFound, badRequest, forbidden, serverError } = require('../helpers/response');
 const { buildCarteOfficielle } = require('../helpers/carteTemplate');
 
 /** Un gestionnaire ne voit/modifie que sa propre organisation ; l'admin voit tout. */
 function isOwnOrg(req, numAgr) {
   return req.user.role === 'admin' || req.user.NumAgr === numAgr;
+}
+
+/**
+ * Gérer les gestionnaires additionnels d'une organisation (en ajouter/suspendre/retirer) est
+ * réservé à l'admin, au gestionnaire "principal" (créé par l'acceptation de la demande — jamais
+ * enregistré dans SD_AdminOrganisation) ou à un gestionnaire additionnel à niveau "Complet".
+ */
+async function peutGererGestionnaires(req) {
+  if (req.user.role === 'admin') return true;
+  const [[row]] = await db.execute(`SELECT niveauAcces FROM SD_AdminOrganisation WHERE idUser = ?`, [req.user.idUser]);
+  return !row || row.niveauAcces === 'Complet';
 }
 
 // ── Multer — documents organisation ───────────────────────────
@@ -305,6 +321,104 @@ router.delete('/:id', auth, roles('admin'), async (req, res) => {
       return badRequest(res, "Seule une organisation suspendue ou clôturée peut être supprimée définitivement.");
     PurgeService.purgerOrganisation(req.params.id);
     ok(res, { message: 'Organisation supprimée définitivement, avec tous ses adhérents et données rattachées' });
+  } catch (err) { serverError(res, err); }
+});
+
+// ── Gestionnaires additionnels (SD_AdminOrganisation) ───────────────────────
+// L'accès effectif d'un gestionnaire à son organisation reste porté par GPOTB_Users.NumAgr
+// (inchangé) — SD_AdminOrganisation n'est donc pas un système d'autorisation parallèle : c'est
+// le registre qui permet d'avoir PLUSIEURS comptes gestionnaire pour une même organisation, avec
+// un niveau d'accès et un statut suivis. Suspendre un accès ici désactive directement le compte
+// (GPOTB_Users.isActive), déjà vérifié partout ailleurs — aucune autre vérification à dupliquer.
+
+// GET /api/organisations/:id/gestionnaires
+router.get('/:id/gestionnaires', auth, async (req, res) => {
+  try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
+    const [rows] = await db.execute(
+      `SELECT ao.idAdminOrg, ao.niveauAcces, ao.statut, ao.dateAttribution,
+              u.idUser, u.username, u.email, u.isActive
+       FROM SD_AdminOrganisation ao
+       JOIN GPOTB_Users u ON u.idUser = ao.idUser
+       WHERE ao.numAgr = ? ORDER BY ao.dateAttribution ASC`,
+      [req.params.id]
+    );
+    ok(res, rows);
+  } catch (err) { serverError(res, err); }
+});
+
+// POST /api/organisations/:id/gestionnaires — invite un gestionnaire additionnel
+router.post('/:id/gestionnaires', auth, async (req, res) => {
+  try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
+    if (!(await peutGererGestionnaires(req))) return forbidden(res, "Niveau d'accès insuffisant pour gérer les gestionnaires");
+    const org = await OrganisationRepository.findByIdFull(req.params.id);
+    if (!org) return notFound(res, 'Organisation non trouvée');
+
+    const email = (req.body.email || '').trim();
+    const niveauAcces = req.body.niveauAcces === 'Complet' ? 'Complet' : 'Standard';
+    if (!email) return badRequest(res, 'Email requis');
+    if (await DemandeService.emailDejaUtilise(email))
+      return badRequest(res, "Cet email est déjà utilisé sur la plateforme — un email ne peut servir qu'à une seule inscription.");
+
+    const username = await DemandeService.genererIdentifiantUnique(DemandeService.baseIdentifiantOrganisation(org.LibOrg));
+    const password = DemandeService.genererMotDePasse();
+    const passwordHash = await AuthService.hashPassword(password);
+    const userResult = await UserRepository.create({
+      username, email, passwordHash, role: 'gestionnaire', isActive: 1, NumAgr: req.params.id,
+    });
+
+    await db.execute(
+      `INSERT INTO SD_AdminOrganisation (idUser, numAgr, niveauAcces) VALUES (?, ?, ?)`,
+      [userResult.insertId, req.params.id, niveauAcces]
+    );
+
+    emailSvc.sendMail(emailSvc.emailAccepteeAvecIdentifiants(
+      { emailOrg: email, nomOrg: org.LibOrg, repNom: '', repPrenom: '' },
+      { username, password, montantAnnuel: 0, codeDevise: '', dejaPayee: true }
+    )).catch(() => {});
+
+    created(res, { message: 'Gestionnaire ajouté — identifiants envoyés par email', idUser: userResult.insertId, username });
+  } catch (err) { serverError(res, err); }
+});
+
+// PUT /api/organisations/:id/gestionnaires/:idAdminOrg
+router.put('/:id/gestionnaires/:idAdminOrg', auth, async (req, res) => {
+  try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
+    if (!(await peutGererGestionnaires(req))) return forbidden(res, "Niveau d'accès insuffisant pour gérer les gestionnaires");
+    const [[row]] = await db.execute(
+      `SELECT * FROM SD_AdminOrganisation WHERE idAdminOrg = ? AND numAgr = ?`,
+      [req.params.idAdminOrg, req.params.id]
+    );
+    if (!row) return notFound(res, 'Gestionnaire introuvable pour cette organisation');
+
+    const niveauAcces = req.body.niveauAcces === 'Complet' ? 'Complet' : 'Standard';
+    const statut = req.body.statut === 'Suspendu' ? 'Suspendu' : 'Actif';
+    await db.execute(`UPDATE SD_AdminOrganisation SET niveauAcces = ?, statut = ? WHERE idAdminOrg = ?`,
+      [niveauAcces, statut, req.params.idAdminOrg]);
+    await db.execute(`UPDATE GPOTB_Users SET isActive = ? WHERE idUser = ?`,
+      [statut === 'Actif' ? 1 : 0, row.idUser]);
+
+    ok(res, { message: 'Gestionnaire mis à jour' });
+  } catch (err) { serverError(res, err); }
+});
+
+// DELETE /api/organisations/:id/gestionnaires/:idAdminOrg — retire l'accès (désactive le compte,
+// ne le supprime pas, cohérent avec le principe "un compte permanent une fois créé")
+router.delete('/:id/gestionnaires/:idAdminOrg', auth, async (req, res) => {
+  try {
+    if (!isOwnOrg(req, req.params.id)) return forbidden(res, 'Cette organisation ne vous concerne pas');
+    if (!(await peutGererGestionnaires(req))) return forbidden(res, "Niveau d'accès insuffisant pour gérer les gestionnaires");
+    const [[row]] = await db.execute(
+      `SELECT * FROM SD_AdminOrganisation WHERE idAdminOrg = ? AND numAgr = ?`,
+      [req.params.idAdminOrg, req.params.id]
+    );
+    if (!row) return notFound(res, 'Gestionnaire introuvable pour cette organisation');
+
+    await db.execute(`DELETE FROM SD_AdminOrganisation WHERE idAdminOrg = ?`, [req.params.idAdminOrg]);
+    await db.execute(`UPDATE GPOTB_Users SET isActive = 0 WHERE idUser = ?`, [row.idUser]);
+    ok(res, { message: 'Accès retiré' });
   } catch (err) { serverError(res, err); }
 });
 

@@ -93,9 +93,18 @@ router.register('mon-organisation', async () => {
           <button class="dp-btn" id="btnAddCampagne">+ Nouvelle campagne</button>
         </div>
         <div id="campagnesWrap" style="padding:20px">Chargement…</div>
+      </div>
+
+      <div class="dash-panel dash-full" style="margin-top:20px">
+        <div class="dp-head">
+          <div><div class="dp-title">👥 Gestionnaires</div><div class="dp-sub">Comptes additionnels avec accès à cette organisation</div></div>
+          <button class="dp-btn" id="btnAddGestionnaire">+ Ajouter un gestionnaire</button>
+        </div>
+        <div id="gestionnairesWrap" style="padding:20px">Chargement…</div>
       </div>`;
 
     loadCampagnes();
+    loadGestionnaires();
 
     document.getElementById('btnEditOrg').addEventListener('click', () => {
       document.getElementById('orgViewWrap').style.display = 'none';
@@ -108,7 +117,7 @@ router.register('mon-organisation', async () => {
       fetch(`/api/organisations/${org.NumAgr}/carte`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.text())
         .then(html => { w.document.open(); w.document.write(html); w.document.close(); })
-        .catch(() => { w.close(); toast('Erreur lors de la génération de la carte', 'error'); });
+        .catch(() => { w.close(); showToast('Erreur lors de la génération de la carte', 'error'); });
     });
 
     document.getElementById('logoFileInput').addEventListener('change', async (e) => {
@@ -147,6 +156,7 @@ router.register('mon-organisation', async () => {
     });
 
     document.getElementById('btnAddCampagne').addEventListener('click', () => openCampagneModal());
+    document.getElementById('btnAddGestionnaire').addEventListener('click', () => openGestionnaireModal());
   }
 
   const CAMP_STATUT_CFG = {
@@ -186,6 +196,95 @@ router.register('mon-organisation', async () => {
     } catch (err) {
       wrap.innerHTML = `<p class="dt-empty">${err.message}</p>`;
     }
+  }
+
+  async function loadGestionnaires() {
+    const wrap = document.getElementById('gestionnairesWrap');
+    if (!wrap) return;
+    try {
+      const rows = await api.get(`/organisations/${user.NumAgr}/gestionnaires`);
+      if (!rows.length) { wrap.innerHTML = `<p class="dt-empty">Aucun gestionnaire additionnel — seul le compte principal a accès.</p>`; return; }
+      wrap.innerHTML = `<div class="ra-list">${rows.map(g => `
+        <div class="ra-item">
+          <div>
+            <strong>${g.username}</strong> — ${g.email}
+            <div style="font-size:11px;color:#94a3b8">${g.niveauAcces} · ajouté le ${new Date(g.dateAttribution).toLocaleDateString('fr-FR')}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <span class="badge ${g.statut === 'Actif' ? 'badge-green' : 'badge-grey'}">${g.statut}</span>
+            <button class="dp-btn" data-action="toggle" data-id="${g.idAdminOrg}" data-statut="${g.statut}" style="font-size:11px;padding:4px 10px">
+              ${g.statut === 'Actif' ? '⏸ Suspendre' : '▶ Réactiver'}
+            </button>
+            <button class="dp-btn" data-action="retirer" data-id="${g.idAdminOrg}" style="font-size:11px;padding:4px 10px;color:#dc2626">🗑️ Retirer</button>
+          </div>
+        </div>`).join('')}</div>`;
+
+      wrap.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+        btn.onclick = async () => {
+          const nouveauStatut = btn.dataset.statut === 'Actif' ? 'Suspendu' : 'Actif';
+          try {
+            await api.put(`/organisations/${user.NumAgr}/gestionnaires/${btn.dataset.id}`, { statut: nouveauStatut });
+            loadGestionnaires();
+          } catch (e) { showToast(e.message, 'error'); }
+        };
+      });
+      wrap.querySelectorAll('[data-action="retirer"]').forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm("Retirer l'accès de ce gestionnaire ? Son compte sera désactivé.")) return;
+          try {
+            await api.delete(`/organisations/${user.NumAgr}/gestionnaires/${btn.dataset.id}`);
+            showToast('Accès retiré');
+            loadGestionnaires();
+          } catch (e) { showToast(e.message, 'error'); }
+        };
+      });
+    } catch (err) {
+      wrap.innerHTML = `<p class="dt-empty">${err.message}</p>`;
+    }
+  }
+
+  function openGestionnaireModal() {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="gestModal">
+        <div class="modal" style="max-width:420px">
+          <div class="modal-header">
+            <h3>+ Ajouter un gestionnaire</h3>
+            <button class="modal-close" id="closeGestModal">×</button>
+          </div>
+          <div style="padding:20px">
+            <div class="form-group">
+              <label>Email *</label>
+              <input type="email" id="gestEmail" placeholder="email@exemple.com" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px">
+            </div>
+            <div class="form-group">
+              <label>Niveau d'accès</label>
+              <select id="gestNiveau" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px">
+                <option value="Standard">Standard</option>
+                <option value="Complet">Complet (peut gérer d'autres gestionnaires)</option>
+              </select>
+            </div>
+            <p style="font-size:12px;color:#64748b">Un identifiant et un mot de passe seront générés et envoyés par email à cette adresse.</p>
+            <div class="form-actions" style="margin-top:14px">
+              <button class="btn btn-secondary" id="cancelGestModal">Annuler</button>
+              <button class="btn btn-primary" id="saveGestModal">Ajouter</button>
+            </div>
+          </div>
+        </div>
+      </div>`);
+    const close = () => document.getElementById('gestModal')?.remove();
+    document.getElementById('closeGestModal').onclick = close;
+    document.getElementById('cancelGestModal').onclick = close;
+    document.getElementById('saveGestModal').onclick = async () => {
+      const email = document.getElementById('gestEmail').value.trim();
+      const niveauAcces = document.getElementById('gestNiveau').value;
+      if (!email) { showToast('Email requis', 'error'); return; }
+      try {
+        await api.post(`/organisations/${user.NumAgr}/gestionnaires`, { email, niveauAcces });
+        showToast('Gestionnaire ajouté — identifiants envoyés par email');
+        close();
+        loadGestionnaires();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
   }
 
   function openCampagneModal() {

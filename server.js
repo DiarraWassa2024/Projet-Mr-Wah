@@ -60,6 +60,7 @@ app.use('/api/roles',                  require('./routes/roles'));
 app.use('/api/ia-opportunites',        require('./routes/ia-opportunites'));
 app.use('/api/impressions',            require('./routes/impressions'));
 app.use('/api/db-admin',               require('./routes/db-admin'));
+app.use('/api/config-plateforme',      require('./routes/config-plateforme'));
 
 // ── SPA fallback ──────────────────────────────────────────────
 app.get('*', (req, res) => {

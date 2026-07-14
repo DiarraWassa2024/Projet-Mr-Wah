@@ -24,7 +24,12 @@ router.register('login', () => {
               ${i18n.t('login')}
             </button>
           </form>
-          <p style="text-align:center;margin-top:18px;font-size:13px">
+          <p style="text-align:center;margin-top:12px">
+            <button type="button" id="btnMotDePasseOublie" style="background:none;border:none;cursor:pointer;color:#64748b;font-family:inherit;font-size:12.5px">
+              Mot de passe oublié ?
+            </button>
+          </p>
+          <p style="text-align:center;margin-top:6px;font-size:13px">
             <button type="button" id="btnGoAdhesion" style="background:none;border:none;cursor:pointer;color:var(--primary);font-weight:600;font-family:inherit;font-size:13px">
               Pas encore de compte ? Adhérer à SoliDev →
             </button>
@@ -42,6 +47,7 @@ router.register('login', () => {
       </div>`;
 
     document.getElementById('btnGoAdhesion').onclick = () => landingNav('adhesion');
+    document.getElementById('btnMotDePasseOublie').onclick = () => ouvrirModalMotDePasseOublie();
 
     document.getElementById('loginLangBtn').addEventListener('click', e => {
       e.stopPropagation();
@@ -67,5 +73,49 @@ router.register('login', () => {
       }
     };
   }
+
+  function ouvrirModalMotDePasseOublie() {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="mdpOublieModal">
+        <div class="modal conf-modal">
+          <h3>Mot de passe oublié</h3>
+          <p style="color:#64748b;font-size:13px">Entrez votre identifiant ou votre email — si un compte correspond, un lien de réinitialisation valable 1 heure vous sera envoyé par email.</p>
+          <div class="form-group" style="margin-top:12px">
+            <input type="text" id="mdpOublieIdentifiant" placeholder="Identifiant ou email" style="width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px">
+          </div>
+          <div id="mdpOublieMsg" class="msg" style="display:none;margin-top:10px"></div>
+          <div class="conf-actions" style="margin-top:16px">
+            <button class="btn btn-secondary" id="mdpOublieCancel">Annuler</button>
+            <button class="btn btn-primary" id="mdpOublieOk">Envoyer le lien</button>
+          </div>
+        </div>
+      </div>`);
+    const close = () => document.getElementById('mdpOublieModal')?.remove();
+    document.getElementById('mdpOublieCancel').onclick = close;
+    document.getElementById('mdpOublieOk').onclick = async () => {
+      const identifiant = document.getElementById('mdpOublieIdentifiant').value.trim();
+      const msg = document.getElementById('mdpOublieMsg');
+      if (!identifiant) return;
+      const btn = document.getElementById('mdpOublieOk');
+      btn.disabled = true; btn.textContent = 'Envoi…';
+      try {
+        const res = await fetch('/api/auth/mot-de-passe-oublie', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifiant }),
+        });
+        const data = await res.json();
+        msg.style.display = 'block';
+        msg.className = 'msg ok';
+        msg.textContent = data.message;
+        btn.textContent = 'Envoyé ✓';
+      } catch (e) {
+        msg.style.display = 'block';
+        msg.className = 'msg error';
+        msg.textContent = 'Erreur — réessayez plus tard';
+        btn.disabled = false; btn.textContent = 'Envoyer le lien';
+      }
+    };
+  }
+
   render();
 });

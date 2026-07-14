@@ -552,6 +552,89 @@ module.exports = function initSchema() {
     actif     INTEGER NOT NULL DEFAULT 1 CHECK(actif IN (0,1))
   );
 
+  -- ============================================================
+  -- Phase 3a — Sécurité renforcée (mot de passe oublié, verrouillage anti-bruteforce,
+  -- sessions, multi-admin par organisation)
+  -- ============================================================
+  CREATE TABLE IF NOT EXISTS SD_ReinitialisationMDP (
+    idReinit       INTEGER PRIMARY KEY AUTOINCREMENT,
+    idUser         INTEGER NOT NULL REFERENCES GPOTB_Users(idUser),
+    token          TEXT    NOT NULL UNIQUE,
+    dateDemande    TEXT    NOT NULL DEFAULT (datetime('now')),
+    dateExpiration TEXT    NOT NULL,
+    utilise        INTEGER NOT NULL DEFAULT 0 CHECK(utilise IN (0,1))
+  );
+
+  -- Clé sur l'identifiant tenté (pas forcément un compte existant) pour ne jamais
+  -- révéler si un identifiant existe ou non via le comportement du verrouillage.
+  CREATE TABLE IF NOT EXISTS SD_TentativeConnexion (
+    idTentative           INTEGER PRIMARY KEY AUTOINCREMENT,
+    identifiant           TEXT    NOT NULL UNIQUE,
+    nbTentatives          INTEGER NOT NULL DEFAULT 1,
+    dateDerniereTentative TEXT    NOT NULL DEFAULT (datetime('now')),
+    bloqueJusqu           TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS SD_HistoriqueConnexion (
+    idHistorique    INTEGER PRIMARY KEY AUTOINCREMENT,
+    idUser          INTEGER REFERENCES GPOTB_Users(idUser),
+    dateConnexion   TEXT    NOT NULL DEFAULT (datetime('now')),
+    ipAdresse       TEXT,
+    userAgent       TEXT,
+    statutConnexion TEXT    CHECK(statutConnexion IN ('Succès','Échec'))
+  );
+
+  CREATE TABLE IF NOT EXISTS SD_SessionUtilisateur (
+    idSession      INTEGER PRIMARY KEY AUTOINCREMENT,
+    idUser         INTEGER NOT NULL REFERENCES GPOTB_Users(idUser),
+    token          TEXT    NOT NULL UNIQUE,
+    dateDebut      TEXT    NOT NULL DEFAULT (datetime('now')),
+    dateExpiration TEXT,
+    ipAdresse      TEXT,
+    userAgent      TEXT,
+    statut         TEXT    NOT NULL DEFAULT 'Active' CHECK(statut IN ('Active','Expirée','Révoquée'))
+  );
+
+  -- Plusieurs gestionnaires par organisation, avec niveau d'accès distinct — en plus du
+  -- gestionnaire "principal" identifié par GPOTB_Users.NumAgr (inchangé).
+  CREATE TABLE IF NOT EXISTS SD_AdminOrganisation (
+    idAdminOrg      INTEGER PRIMARY KEY AUTOINCREMENT,
+    idUser          INTEGER NOT NULL REFERENCES GPOTB_Users(idUser),
+    numAgr          TEXT    NOT NULL REFERENCES GPOTB01_Organisation(NumAgr),
+    niveauAcces     TEXT    NOT NULL DEFAULT 'Standard' CHECK(niveauAcces IN ('Standard','Complet')),
+    dateAttribution TEXT    NOT NULL DEFAULT (datetime('now')),
+    statut          TEXT    NOT NULL DEFAULT 'Actif' CHECK(statut IN ('Actif','Suspendu'))
+  );
+
+  -- ============================================================
+  -- Phase 3d — Configuration de plateforme (taux dynamiques, pages statiques, thème par pays)
+  -- ============================================================
+  CREATE TABLE IF NOT EXISTS SD_ConfigPlateforme (
+    idConfig       INTEGER PRIMARY KEY AUTOINCREMENT,
+    cle            TEXT    NOT NULL UNIQUE,
+    valeur         TEXT    NOT NULL,
+    description    TEXT,
+    dateMaj        TEXT    NOT NULL DEFAULT (datetime('now')),
+    idModificateur INTEGER REFERENCES GPOTB_Users(idUser)
+  );
+
+  CREATE TABLE IF NOT EXISTS SD_PageStatique (
+    idPage   INTEGER PRIMARY KEY AUTOINCREMENT,
+    titre    TEXT    NOT NULL,
+    slug     TEXT    NOT NULL UNIQUE,
+    contenu  TEXT,
+    langue   TEXT    NOT NULL DEFAULT 'fr',
+    dateMaj  TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS SD_ThemePays (
+    idTheme           INTEGER PRIMARY KEY AUTOINCREMENT,
+    codePays          TEXT    NOT NULL UNIQUE REFERENCES GPOTB03_Pays(CodePays),
+    couleurPrimaire   TEXT,
+    couleurSecondaire TEXT,
+    logoPays          TEXT
+  );
+
   -- Journal d'activité (piste d'audit)
   CREATE TABLE IF NOT EXISTS SD_LogActivite (
     idLog       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -859,6 +942,8 @@ module.exports = function initSchema() {
     `UPDATE SD_DemandeAdhesion SET statutAdhesion = 'Refusé' WHERE statut = 'Refusée'  AND statutAdhesion = 'En attente de validation'`,
     // GPOTB02_Adherent — lieu de naissance (affiché sur la carte d'adhérent officielle)
     `ALTER TABLE GPOTB02_Adherent ADD COLUMN LieuNaissAdh TEXT`,
+    // Individu — nationalité (distincte du pays de résidence), reprise automatiquement sur l'adhérent
+    `ALTER TABLE SD_DemandeAdhesion ADD COLUMN nationalite TEXT`,
   ];
   migrations.forEach(sql => { try { db.exec(sql); } catch(_) {} });
 
@@ -1052,6 +1137,17 @@ module.exports = function initSchema() {
     `CREATE INDEX IF NOT EXISTS idx_actu_numAgr         ON SD_Actualite(numAgr)`,
     `CREATE INDEX IF NOT EXISTS idx_actu_statut         ON SD_Actualite(statut)`,
     `CREATE INDEX IF NOT EXISTS idx_faq_actif           ON SD_FAQ(actif)`,
+    `CREATE INDEX IF NOT EXISTS idx_reinit_token         ON SD_ReinitialisationMDP(token)`,
+    `CREATE INDEX IF NOT EXISTS idx_reinit_user          ON SD_ReinitialisationMDP(idUser)`,
+    `CREATE INDEX IF NOT EXISTS idx_tentative_identifiant ON SD_TentativeConnexion(identifiant)`,
+    `CREATE INDEX IF NOT EXISTS idx_histconn_user        ON SD_HistoriqueConnexion(idUser)`,
+    `CREATE INDEX IF NOT EXISTS idx_session_token         ON SD_SessionUtilisateur(token)`,
+    `CREATE INDEX IF NOT EXISTS idx_session_user          ON SD_SessionUtilisateur(idUser)`,
+    `CREATE INDEX IF NOT EXISTS idx_adminorg_numAgr      ON SD_AdminOrganisation(numAgr)`,
+    `CREATE INDEX IF NOT EXISTS idx_adminorg_user        ON SD_AdminOrganisation(idUser)`,
+    `CREATE INDEX IF NOT EXISTS idx_config_cle           ON SD_ConfigPlateforme(cle)`,
+    `CREATE INDEX IF NOT EXISTS idx_pagestatique_slug    ON SD_PageStatique(slug)`,
+    `CREATE INDEX IF NOT EXISTS idx_themepays_codePays   ON SD_ThemePays(codePays)`,
     `CREATE INDEX IF NOT EXISTS idx_benef_idAdh         ON GPOTB06_Beneficiaire(idAdh)`,
     `CREATE INDEX IF NOT EXISTS idx_benef_numBenef      ON GPOTB06_Beneficiaire(NumBenef)`,
     `CREATE INDEX IF NOT EXISTS idx_adh_numAdherent    ON GPOTB02_Adherent(NumAdherent)`,

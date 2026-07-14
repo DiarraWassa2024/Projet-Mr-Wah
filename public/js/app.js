@@ -277,6 +277,10 @@ function showShell() {
               <span class="sb-icon si-slate">🗄️</span>
               <span>Base de données</span>
             </a>
+            <a class="sb-item" data-route="configuration" href="#" onclick="nav('configuration')">
+              <span class="sb-icon si-amber">⚙️</span>
+              <span>Configuration</span>
+            </a>
           </div>`;
 
   document.body.innerHTML = `

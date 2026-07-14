@@ -8,7 +8,8 @@ const PaiementRepository = require('../repositories/PaiementRepository');
 const OrganisationRepository = require('../repositories/OrganisationRepository');
 const DemandeService     = require('../services/DemandeService');
 const { getFormulesCotisation, deviseDuPays, genererCodeConfirmationUnique } = DemandeService;
-const { PLATFORM_COMMISSION_PCT } = require('../config/donation');
+const { getCommissionPct } = require('../config/donation');
+const { getTauxRemboursementPct } = require('../config/remboursement');
 const NotificationService = require('../services/NotificationService');
 const AdherentRepository  = require('../repositories/AdherentRepository');
 
@@ -333,6 +334,34 @@ router.get('/faq', async (req, res) => {
   } catch (err) { res.status(500).json({ message: err.message }); }
 });
 
+// GET /api/public/taux — taux de commission/remboursement affichés dans les interfaces (les
+// valeurs réelles utilisées côté serveur viennent toujours de getCommissionPct()/
+// getTauxRemboursementPct(), jamais de ce texte d'affichage).
+router.get('/taux', async (req, res) => {
+  try {
+    res.json({ commissionPct: getCommissionPct(), remboursementPct: getTauxRemboursementPct() });
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// GET /api/public/pages/:slug — page statique éditable (CGU, À propos, Confidentialité...)
+router.get('/pages/:slug', async (req, res) => {
+  try {
+    const [[row]] = await db.execute(`SELECT titre, contenu, langue, dateMaj FROM SD_PageStatique WHERE slug = ?`, [req.params.slug]);
+    if (!row) return res.status(404).json({ message: 'Page introuvable' });
+    res.json(row);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// GET /api/public/theme?codePays=CIV — personnalisation visuelle par pays (repli : aucune si absente)
+router.get('/theme', async (req, res) => {
+  try {
+    const { codePays } = req.query;
+    if (!codePays) return res.json(null);
+    const [[row]] = await db.execute(`SELECT couleurPrimaire, couleurSecondaire, logoPays FROM SD_ThemePays WHERE codePays = ?`, [codePays]);
+    res.json(row || null);
+  } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
 // POST /api/public/adhesion-multi — envoi d'un même dossier individu à plusieurs orgs
 router.post('/adhesion-multi', upload.fields([
   { name: 'photo',    maxCount: 1 },
@@ -388,8 +417,8 @@ router.post('/adhesion-multi', upload.fields([
            (typeOrg, nomOrg, numAgr, emailOrg, telOrg, codePays, libPays,
             siegeOrg, dateCrea, description, repNom, repPrenom, repCNI,
             repAdresse, refDossier, dateDemande,
-            photo, photoCNI, sexe, profession, situationMatrimoniale, ville, fonctionSouhaitee)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            photo, photoCNI, sexe, profession, situationMatrimoniale, ville, fonctionSouhaitee, nationalite)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         ['Individu', nomOrg, org.NumAgr,
          dossier.email, dossier.tel || null,
          dossier.codePays || null, dossier.libPays || null,
@@ -400,7 +429,7 @@ router.post('/adhesion-multi', upload.fields([
          refDossier, now,
          photoPath, photoCNIPath,
          dossier.sexe || null, dossier.profession || null, dossier.situationMatrimoniale || null,
-         dossier.ville || null, dossier.fonctionSouhaitee || null]
+         dossier.ville || null, dossier.fonctionSouhaitee || null, dossier.nationalite || null]
       );
 
       demandes.push({
@@ -483,10 +512,10 @@ router.post('/don', async (req, res) => {
     }
 
     const montantNum = Number(montant);
-    // Don fléché vers une organisation : la plateforme prélève PLATFORM_COMMISSION_PCT %,
-    // le reste est crédité à l'organisation. Don général (aucune organisation choisie) :
-    // l'intégralité revient à la plateforme elle-même.
-    const tauxCommission    = numAgrClean ? PLATFORM_COMMISSION_PCT : 100;
+    // Don fléché vers une organisation : la plateforme prélève un pourcentage de commission
+    // (configurable, cf. config/donation.js), le reste est crédité à l'organisation. Don général
+    // (aucune organisation choisie) : l'intégralité revient à la plateforme elle-même.
+    const tauxCommission    = numAgrClean ? getCommissionPct() : 100;
     const montantPlateforme = Math.round(montantNum * tauxCommission / 100);
     const montantOrg        = montantNum - montantPlateforme;
 

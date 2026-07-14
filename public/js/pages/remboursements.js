@@ -17,7 +17,7 @@ router.register('remboursements', async () => {
       <h1>↩️ Remboursements</h1>
     </div>
     ${!isAdmin ? `<p class="dt-empty" style="text-align:left;margin-bottom:12px">
-      En cas de remboursement, ${TAUX_INFO_TEXT()} du montant payé vous est proposé — le solde reste acquis.
+      En cas de remboursement, <span id="rembPageTaux">…</span>% du montant payé vous est proposé — le solde reste acquis.
       Vous devez accepter explicitement l'offre pour que le remboursement soit versé.
     </p>` : ''}
     <div class="table-wrap">
@@ -40,7 +40,12 @@ router.register('remboursements', async () => {
       </table>
     </div>`;
 
-  function TAUX_INFO_TEXT() { return '80%'; } // aligné sur config/remboursement.js (TAUX_REMBOURSEMENT_PCT)
+  if (!isAdmin) {
+    api.get('/public/taux').then(t => {
+      const el = document.getElementById('rembPageTaux');
+      if (el) el.textContent = t.remboursementPct;
+    }).catch(() => {});
+  }
 
   async function load() {
     const tbody = document.getElementById('rembTbody');

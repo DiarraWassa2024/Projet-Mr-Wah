@@ -176,6 +176,41 @@ function emailRefusee(demande, motif) {
   };
 }
 
+function emailReinitialisationMDP(user, lien) {
+  const html = wrapHtml(`
+    <div class="hdr">
+      <h1>🔑 Réinitialisation de mot de passe</h1>
+      <p>SoliDev – Plateforme Panafricaine des Associations</p>
+    </div>
+    <div class="body">
+      <p>Bonjour <strong>${user.username}</strong>,</p>
+      <p>Une demande de réinitialisation de mot de passe a été effectuée pour votre compte. Cliquez
+         sur le bouton ci-dessous pour choisir un nouveau mot de passe :</p>
+      <p style="text-align:center">
+        <a href="${lien}" class="btn">Réinitialiser mon mot de passe →</a>
+      </p>
+      <p style="color:#7c2d12;background:#fff7ed;border-radius:8px;padding:10px 14px;font-size:13px">
+        ⚠️ Ce lien expire dans 1 heure et ne peut être utilisé qu'une seule fois. Si vous n'êtes pas
+        à l'origine de cette demande, ignorez simplement cet email — votre mot de passe actuel reste valable.
+      </p>
+    </div>
+    <div class="ftr">SoliDev · Solidarité &amp; Développement · noreply@solidev.africa</div>
+  `);
+
+  const text = `Bonjour ${user.username},\n\n`
+    + `Une demande de réinitialisation de mot de passe a été effectuée pour votre compte.\n`
+    + `Cliquez sur ce lien pour choisir un nouveau mot de passe (valable 1 heure, usage unique) :\n${lien}\n\n`
+    + `Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.`;
+
+  return {
+    to: user.email,
+    from: FROM,
+    subject: '🔑 Réinitialisation de votre mot de passe SoliDev',
+    html,
+    text,
+  };
+}
+
 function emailNouvelleDemande(demande) {
   const text = `Nouvelle demande d'adhésion reçue.\n\n`
     + `Organisation : ${demande.nomOrg}\nType : ${demande.typeOrg}\nEmail : ${demande.emailOrg}\n`
@@ -230,4 +265,4 @@ async function logEmail(mailOpts, statut, erreur, reponseSMTP, dateEnvoi, idAdh)
   } catch (e) { console.error('Log email échoué:', e.message); }
 }
 
-module.exports = { sendMail, emailAccepteeAvecIdentifiants, emailRefusee, emailNouvelleDemande };
+module.exports = { sendMail, emailAccepteeAvecIdentifiants, emailRefusee, emailNouvelleDemande, emailReinitialisationMDP };
