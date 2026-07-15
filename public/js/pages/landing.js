@@ -77,8 +77,6 @@ const SD_I18N = {
     ft_nav_admin:   'Administration',
     ft_rights:   '© 2026 SoliDev. Tous droits réservés.',
     ft_africa:   'Plateforme panafricaine · MIAGE 2026',
-    org_select_placeholder: 'Choisir une ou plusieurs organisations déjà inscrites…',
-    org_continue_btn:       "Continuer l'inscription →",
   },
   en: {
     badge:       '🌍 Africa  •  Solidarity  •  Development',
@@ -145,8 +143,6 @@ const SD_I18N = {
     ft_nav_admin:   'Administration',
     ft_rights:   '© 2026 SoliDev. All rights reserved.',
     ft_africa:   'Pan-African platform · MIAGE 2026',
-    org_select_placeholder: 'Choose one or more organisations already registered…',
-    org_continue_btn:       'Continue registration →',
   },
 };
 
@@ -184,7 +180,6 @@ router.register('landing', () => {
   setupReveal();
   setupFlagBtns(pays.code);
   setupLangSelect();
-  setupOrgSearch();
   loadActualites();
   loadFaq();
   applyLang(currentLang);
@@ -330,28 +325,6 @@ function buildOnePager(pays) {
         <div class="lp-hero-card-title" data-i18n="cta_don">${t.cta_don}</div>
         <div class="lp-hero-card-sub" data-i18n="cta_don_sub">${t.cta_don_sub}</div>
       </button>
-    </div>
-
-    <div class="lp-org-select" id="lpOrgSelect">
-      <button type="button" class="lp-org-select-box" id="lpOrgSelectToggle">
-        <span class="lp-org-select-icon">🏢</span>
-        <span class="lp-org-select-label" id="lpOrgSelectLabel" data-i18n="org_select_placeholder">${t.org_select_placeholder}</span>
-        <span class="lp-org-select-caret">▾</span>
-      </button>
-      <div class="lp-org-dropdown" id="lpOrgDropdown" style="display:none">
-        <div class="lp-org-dropdown-search">
-          <input type="text" id="lpOrgFilterInput" autocomplete="off" placeholder="Filtrer par nom…">
-        </div>
-        <div class="lp-org-dropdown-list" id="lpOrgDropdownList">
-          <div class="lp-org-dropdown-loading">⏳ Chargement des organisations…</div>
-        </div>
-        <div class="lp-org-dropdown-footer">
-          <span id="lpOrgSelCount">0 sélectionnée(s)</span>
-          <button type="button" class="lp-org-btn" id="lpOrgContinueBtn" disabled data-i18n="org_continue_btn">
-            ${t.org_continue_btn}
-          </button>
-        </div>
-      </div>
     </div>
 
     <div class="lp-hero-scroll">▼</div>
@@ -571,88 +544,6 @@ function setupFlagBtns(activeCode) {
   // organisations qui y sont inscrites ainsi que le fond de carte du pays lui-même.
   document.querySelectorAll('.lp-flag-btn').forEach(btn => {
     btn.addEventListener('click', () => landingNav('carte', { pays: btn.dataset.code }));
-  });
-}
-
-// ── Sélecteur d'organisations (liste déroulante à choix multiple) ──
-function setupOrgSearch() {
-  const toggle   = document.getElementById('lpOrgSelectToggle');
-  const dropdown = document.getElementById('lpOrgDropdown');
-  const listEl   = document.getElementById('lpOrgDropdownList');
-  const filter   = document.getElementById('lpOrgFilterInput');
-  const label    = document.getElementById('lpOrgSelectLabel');
-  const countEl  = document.getElementById('lpOrgSelCount');
-  const contBtn  = document.getElementById('lpOrgContinueBtn');
-  if (!toggle || !dropdown || !listEl) return;
-
-  let allOrgs    = null; // chargées une seule fois à la première ouverture
-  const selected = new Map(); // NumAgr -> organisation (préserve les infos pour l'étiquette)
-
-  toggle.addEventListener('click', () => {
-    const opening = dropdown.style.display === 'none';
-    dropdown.style.display = opening ? '' : 'none';
-    if (opening && allOrgs === null) loadOrgs();
-  });
-
-  document.addEventListener('click', e => {
-    if (!dropdown.contains(e.target) && e.target !== toggle && !toggle.contains(e.target)) {
-      dropdown.style.display = 'none';
-    }
-  });
-
-  filter?.addEventListener('input', () => renderList(filter.value.trim().toLowerCase()));
-
-  async function loadOrgs() {
-    try {
-      const res  = await fetch('/api/public/organisations?all=1');
-      const data = await res.json();
-      allOrgs = data.orgs || [];
-      renderList('');
-    } catch (_) {
-      listEl.innerHTML = `<div class="lp-org-dropdown-empty">⚠️ Impossible de charger les organisations</div>`;
-    }
-  }
-
-  function renderList(filterText) {
-    if (!allOrgs) return;
-    const rows = filterText
-      ? allOrgs.filter(o => o.LibOrg.toLowerCase().includes(filterText))
-      : allOrgs;
-
-    if (!rows.length) {
-      listEl.innerHTML = `<div class="lp-org-dropdown-empty">Aucune organisation trouvée</div>`;
-      return;
-    }
-    listEl.innerHTML = rows.map(o => `
-      <label class="lp-org-dropdown-item">
-        <input type="checkbox" data-numagr="${o.NumAgr}" ${selected.has(String(o.NumAgr)) ? 'checked' : ''}>
-        <span class="lp-org-dropdown-name">${o.LibOrg}</span>
-        <span class="lp-org-dropdown-meta">${o.TypeOrg || ''}${o.Ville ? ' · ' + o.Ville : ''}</span>
-      </label>
-    `).join('');
-
-    listEl.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const numAgr = cb.dataset.numagr;
-        if (cb.checked) selected.set(numAgr, rows.find(o => String(o.NumAgr) === numAgr));
-        else selected.delete(numAgr);
-        updateSelectionUI();
-      });
-    });
-  }
-
-  function updateSelectionUI() {
-    const n = selected.size;
-    countEl.textContent = `${n} sélectionnée${n > 1 ? 's' : ''}`;
-    contBtn.disabled = n === 0;
-    label.textContent = n === 0
-      ? (SD_I18N[currentLang] || SD_I18N.fr).org_select_placeholder
-      : [...selected.values()].map(o => o?.LibOrg).filter(Boolean).join(', ');
-  }
-
-  contBtn?.addEventListener('click', () => {
-    if (!selected.size) return;
-    landingNav('adhesion', { mode: 'individu', numAgrs: [...selected.keys()].join(',') });
   });
 }
 
