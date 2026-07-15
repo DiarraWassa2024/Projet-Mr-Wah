@@ -73,6 +73,15 @@ body.lp-body {
   background: linear-gradient(135deg, #96581f, var(--c-gold));
   color: #fff; font-weight: 600;
 }
+.lp-lang-select {
+  margin-left: 6px; padding: 8px 10px; border-radius: 10px;
+  background: rgba(255,255,255,.08); color: #fff;
+  border: 1px solid rgba(255,255,255,.16);
+  font-size: 13px; font-weight: 500; font-family: inherit;
+  cursor: pointer; transition: background .2s;
+}
+.lp-lang-select:hover { background: rgba(255,255,255,.14); }
+.lp-lang-select option { color: #111; }
 .lp-nav-burger {
   display: none; background: none; border: none; cursor: pointer;
   color: #fff; font-size: 22px;

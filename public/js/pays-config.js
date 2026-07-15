@@ -10,6 +10,7 @@ const PAYS_CONFIG = {
     drapeauSvg: '/images/drapeaux/civ.svg',
     armoirie:   '/images/armoiries/civ.svg',
     langue:     'Français',
+    nationalite: 'Ivoirienne',
     indicatif:  '+225',
     devise: {
       code:    'XOF',
@@ -31,6 +32,7 @@ const PAYS_CONFIG = {
     drapeauSvg: '/images/drapeaux/mli.svg',
     armoirie:   '/images/armoiries/mli.svg',
     langue:     'Français',
+    nationalite: 'Malienne',
     indicatif:  '+223',
     devise: {
       code:    'XOF',
@@ -52,6 +54,7 @@ const PAYS_CONFIG = {
     drapeauSvg: '/images/drapeaux/ben.svg',
     armoirie:   '/images/armoiries/ben.svg',
     langue:     'Français',
+    nationalite: 'Béninoise',
     indicatif:  '+229',
     devise: {
       code:    'XOF',
@@ -73,6 +76,7 @@ const PAYS_CONFIG = {
     drapeauSvg: '/images/drapeaux/bfa.svg',
     armoirie:   '/images/armoiries/bfa.svg',
     langue:     'Français',
+    nationalite: 'Burkinabè',
     indicatif:  '+226',
     devise: {
       code:    'XOF',
@@ -94,6 +98,7 @@ const PAYS_CONFIG = {
     drapeauSvg: '/images/drapeaux/nga.svg',
     armoirie:   '/images/armoiries/nga.svg',
     langue:     'Anglais',
+    nationalite: 'Nigériane',
     indicatif:  '+234',
     devise: {
       code:    'NGN',
@@ -115,6 +120,7 @@ const PAYS_CONFIG = {
     drapeauSvg: '/images/drapeaux/mdg.svg',
     armoirie:   '/images/armoiries/mdg.svg',
     langue:     'Français, Malgache',
+    nationalite: 'Malgache',
     indicatif:  '+261',
     devise: {
       code:    'MGA',
@@ -153,6 +159,22 @@ function applyIndicatif(el, indicatif) {
     el.dataset.autoIndicatif = '1';
   }
   el.addEventListener('input', () => { el.dataset.autoIndicatif = '0'; }, { once: true });
+}
+
+/**
+ * Pré-remplit la nationalité correspondant au pays sélectionné.
+ * - Ne remplace pas une valeur déjà saisie manuellement par l'utilisateur
+ * - Stoppe le remplacement automatique dès que l'utilisateur tape
+ * @param {HTMLElement} el
+ * @param {string} nationalite — ex. 'Ivoirienne'
+ */
+function applyNationalite(el, nationalite) {
+  if (!el || !nationalite) return;
+  if (!el.value || el.dataset.autoNationalite === '1') {
+    el.value = nationalite;
+    el.dataset.autoNationalite = '1';
+  }
+  el.addEventListener('input', () => { el.dataset.autoNationalite = '0'; }, { once: true });
 }
 
 /**
@@ -196,13 +218,14 @@ window.onPaysChange = function(code, individu = false, ids = {}) {
   const p = getPays(code);
 
   const {
-    cardId      = 'paysInfoCard',
-    ministereId = 'ministereInput',
-    telOrgId    = 'telOrgInput',
-    telRepId    = 'repTelInput',
-    telIndId    = 'telIndInput',
-    langueId    = 'langueInput',
-    deviseId    = 'deviseInput',
+    cardId        = 'paysInfoCard',
+    ministereId   = 'ministereInput',
+    telOrgId      = 'telOrgInput',
+    telRepId      = 'repTelInput',
+    telIndId      = 'telIndInput',
+    langueId      = 'langueInput',
+    deviseId      = 'deviseInput',
+    nationaliteId = 'nationaliteInput',
   } = ids;
 
   // Carte visuelle pays
@@ -215,8 +238,9 @@ window.onPaysChange = function(code, individu = false, ids = {}) {
   if (!p) return;
 
   if (individu) {
-    // Formulaire individu — seulement indicatif + carte
+    // Formulaire individu — indicatif, nationalité + carte
     applyIndicatif(document.getElementById(telIndId), p.indicatif);
+    applyNationalite(document.getElementById(nationaliteId), p.nationalite);
   } else {
     // Formulaire organisation
     const ministereEl = document.getElementById(ministereId);

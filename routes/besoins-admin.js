@@ -10,7 +10,9 @@ router.use(auth);
 // GET /api/besoins-admin
 router.get('/', async (req, res) => {
   try {
-    const rows = await BesoinRepository.findAll(req.query);
+    // Un gestionnaire ne voit que les besoins adressés à sa propre organisation.
+    const numAgr = req.user.role === 'gestionnaire' ? req.user.NumAgr : undefined;
+    const rows = await BesoinRepository.findAll({ ...req.query, numAgr });
     ok(res, rows);
   } catch (err) { serverError(res, err); }
 });

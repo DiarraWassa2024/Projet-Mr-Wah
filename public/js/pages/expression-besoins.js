@@ -2,6 +2,9 @@ router.register('expression-besoins', async () => {
   let pays = [];
   try { pays = await api.get('/ref/pays'); } catch(e) {}
 
+  let organisations = [];
+  try { organisations = (await api.get('/public/organisations?all=1')).orgs || []; } catch(e) {}
+
   const typesBesoin = [
     'Aide alimentaire','Aide médicale','Soutien financier','Formation / éducation',
     'Assistance juridique','Logement','Emploi','Soutien psychosocial','Autre'
@@ -37,15 +40,9 @@ router.register('expression-besoins', async () => {
 
           <!-- Champs personne physique -->
           <div id="champsPhysique">
-            <div class="form-row">
-              <div class="form-group">
-                <label>Nom *</label>
-                <input type="text" name="nomPhys" placeholder="Votre nom">
-              </div>
-              <div class="form-group">
-                <label>Prénom *</label>
-                <input type="text" name="prenomPhys" placeholder="Votre prénom">
-              </div>
+            <div class="form-group">
+              <label>Nom et prénom *</label>
+              <input type="text" name="nomPhys" placeholder="Votre nom et prénom">
             </div>
           </div>
 
@@ -55,6 +52,14 @@ router.register('expression-besoins', async () => {
               <label>Nom de l'organisation / entreprise *</label>
               <input type="text" name="nomMoral" placeholder="Ex : Société Bakoly SARL">
             </div>
+          </div>
+
+          <div class="form-group">
+            <label>Organisation destinataire *</label>
+            <select name="numAgr" required>
+              <option value="">Sélectionner l'organisation qui recevra ce besoin…</option>
+              ${organisations.map(o=>`<option value="${o.NumAgr}">${o.LibOrg}</option>`).join('')}
+            </select>
           </div>
 
           <!-- Champs communs -->
@@ -124,15 +129,24 @@ router.register('expression-besoins', async () => {
     // Construire le nom en fonction du type d'entité
     const entity = data.typeEntite;
     const nom = entity === 'physique'
-      ? `${data.nomPhys || ''} ${data.prenomPhys || ''}`.trim()
+      ? (data.nomPhys || '').trim()
       : data.nomMoral || '';
 
     if (!nom) {
       msg.style.display = 'block';
       msg.className = 'msg error';
-      msg.textContent = entity === 'physique' ? 'Veuillez saisir votre nom.' : 'Veuillez saisir le nom de l\'organisation.';
+      msg.textContent = entity === 'physique' ? 'Veuillez saisir votre nom et prénom.' : 'Veuillez saisir le nom de l\'organisation.';
       return;
     }
+
+    if (!data.numAgr) {
+      msg.style.display = 'block';
+      msg.className = 'msg error';
+      msg.textContent = 'Veuillez sélectionner l\'organisation destinataire.';
+      return;
+    }
+
+    const orgChoisie = organisations.find(o => o.NumAgr === data.numAgr);
 
     btn.disabled = true;
     btn.textContent = 'Envoi en cours…';
@@ -153,7 +167,7 @@ router.register('expression-besoins', async () => {
           <p>
             Merci <strong>${nom}</strong>, votre besoin a bien été reçu.<br>
             Référence : <strong>#${result.id}</strong><br><br>
-            Une association partenaire vous contactera sous peu à l'adresse <strong>${data.email}</strong>.
+            <strong>${result.organisation || orgChoisie?.LibOrg || 'L\'organisation sélectionnée'}</strong> vous contactera sous peu à l'adresse <strong>${data.email}</strong>.
           </p>
           <button class="btn btn-primary" style="margin-right:10px" onclick="landingNav('expression-besoins')">Nouveau besoin</button>
           <button class="btn btn-secondary" onclick="landingNav('landing')">← Accueil</button>

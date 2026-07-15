@@ -85,7 +85,6 @@ router.register('paiements', async () => {
             <div class="pay2-sub">Adhésions · Cotisations · Dons · Abonnements · Devises · Pays</div>
           </div>
           <div class="pay2-hd-right">
-            <button class="btn btn-secondary" id="btnExport">⬇ Export CSV</button>
             <button class="btn btn-primary"   id="btnAdd">+ Nouveau paiement</button>
           </div>
         </div>
@@ -313,7 +312,6 @@ router.register('paiements', async () => {
 
     document.getElementById('btnAdd')?.addEventListener('click', () => openModal());
     document.getElementById('btnAddEmpty')?.addEventListener('click', () => openModal());
-    document.getElementById('btnExport')?.addEventListener('click', exportCSV);
 
     document.querySelectorAll('.pay-btn-online').forEach(btn => {
       btn.onclick = () => {
@@ -683,24 +681,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0f4f8;padding:30px;col
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
     else showToast('Autoriser les pop-ups pour générer le reçu', 'error');
-  }
-
-  /* ── Export CSV ──────────────────────────────────────── */
-  function exportCSV() {
-    if (!paiements.length) { showToast('Aucune donnée à exporter', 'error'); return; }
-    const headers = ['Référence','Date','Type','Statut','Adhérent','Organisation','Pays','Montant','Devise','Échéance','Moyen','Note'];
-    const rows = paiements.map(p => [
-      p.NumRecu||p.Reference||'', p.DatePaiement||'', p.TypePaiement||'', p.Statut||'',
-      `${p.NomAdh||''} ${p.PrenAdh||''}`.trim(), p.LibOrg||'', p.CodePays||'',
-      p.MontantPaiement||0, p.CodeDevise||'FCFA', p.DateEcheance||'', p.LibMoyPay||'', p.NotePaiement||''
-    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `paiements_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
   }
 
   /* ── Toast ───────────────────────────────────────────── */

@@ -89,197 +89,204 @@ function showShell() {
   const displayName = isGestionnaire ? (user.orgName || user.username)
                      : isAdherent    ? (user.adherentName || user.username)
                      : user.username;
-  const roleLabel = isGestionnaire ? 'Organisation' : isAdherent ? 'Adhérent' : user.role;
+  const roleLabel = isGestionnaire ? i18n.t('sb_role_org') : isAdherent ? i18n.t('sb_role_adh') : user.role;
   const initials = (displayName || 'U').charAt(0).toUpperCase();
+
+  // L'onglet du navigateur reflète l'organisation connectée, pour s'y retrouver entre plusieurs onglets.
+  document.title = isGestionnaire && user.orgName ? `${user.orgName} · SoliDev` : 'SoliDev – Solidarité & Développement';
 
   const navGestionnaire = `
           <div class="sb-group">
-            <div class="sb-group-label">Principal</div>
+            <div class="sb-group-label" data-i18n="sb_grp_principal">${i18n.t('sb_grp_principal')}</div>
             <a class="sb-item active" data-route="dashboard" href="#" onclick="nav('dashboard')">
               <span class="sb-icon si-blue">📊</span>
-              <span>Tableau de bord</span>
+              <span data-i18n="dashboard">${i18n.t('dashboard')}</span>
             </a>
           </div>
           <div class="sb-group">
-            <div class="sb-group-label">Mon espace</div>
+            <div class="sb-group-label" data-i18n="sb_grp_monespace">${i18n.t('sb_grp_monespace')}</div>
             <a class="sb-item" data-route="mon-organisation" href="#" onclick="nav('mon-organisation')">
               <span class="sb-icon si-violet">🏢</span>
-              <span>Mon organisation</span>
+              <span data-i18n="mon-organisation">${i18n.t('mon-organisation')}</span>
             </a>
             <a class="sb-item" data-route="demandes" href="#" onclick="nav('demandes')" id="demNav">
               <span class="sb-icon si-indigo">📨</span>
-              <span>Demandes d'adhésion</span>
+              <span data-i18n="demandes">${i18n.t('demandes')}</span>
               <span class="sb-badge" id="demBadge" style="display:none"></span>
             </a>
             <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
               <span class="sb-icon si-orange">💰</span>
-              <span>Paiements</span>
+              <span data-i18n="paiements">${i18n.t('paiements')}</span>
             </a>
             <a class="sb-item" data-route="remboursements" href="#" onclick="nav('remboursements')">
               <span class="sb-icon si-red">↩️</span>
-              <span>Remboursements</span>
+              <span data-i18n="remboursements">${i18n.t('remboursements')}</span>
             </a>
             <a class="sb-item" data-route="dettes" href="#" onclick="nav('dettes')">
               <span class="sb-icon si-amber">💳</span>
-              <span>Dettes des membres</span>
+              <span data-i18n="sb_nav_dettes_gest">${i18n.t('sb_nav_dettes_gest')}</span>
             </a>
             <a class="sb-item" data-route="contenu" href="#" onclick="nav('contenu')">
               <span class="sb-icon si-teal">📰</span>
-              <span>Mes actualités</span>
+              <span data-i18n="sb_nav_mesactualites">${i18n.t('sb_nav_mesactualites')}</span>
+            </a>
+            <a class="sb-item" data-route="besoins-admin" href="#" onclick="nav('besoins-admin')">
+              <span class="sb-icon si-cyan">📋</span>
+              <span data-i18n="sb_nav_besoins_gest">${i18n.t('sb_nav_besoins_gest')}</span>
             </a>
             <a class="sb-item" data-route="opportunites" href="#" onclick="nav('opportunites')">
               <span class="sb-icon si-lime">🔍</span>
-              <span>Recherche des opportunités</span>
+              <span data-i18n="opportunites">${i18n.t('opportunites')}</span>
             </a>
           </div>`;
 
   const navAdherent = `
           <div class="sb-group">
-            <div class="sb-group-label">Principal</div>
+            <div class="sb-group-label" data-i18n="sb_grp_principal">${i18n.t('sb_grp_principal')}</div>
             <a class="sb-item active" data-route="dashboard" href="#" onclick="nav('dashboard')">
               <span class="sb-icon si-blue">📊</span>
-              <span>Tableau de bord</span>
+              <span data-i18n="dashboard">${i18n.t('dashboard')}</span>
             </a>
           </div>
           <div class="sb-group">
-            <div class="sb-group-label">Mon espace</div>
+            <div class="sb-group-label" data-i18n="sb_grp_monespace">${i18n.t('sb_grp_monespace')}</div>
             <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
               <span class="sb-icon si-orange">💰</span>
-              <span>Mes paiements</span>
+              <span data-i18n="sb_nav_mespaiements">${i18n.t('sb_nav_mespaiements')}</span>
             </a>
             <a class="sb-item" data-route="remboursements" href="#" onclick="nav('remboursements')">
               <span class="sb-icon si-red">↩️</span>
-              <span>Mes remboursements</span>
+              <span data-i18n="sb_nav_mesremboursements">${i18n.t('sb_nav_mesremboursements')}</span>
             </a>
           </div>`;
 
   const navAdmin = `
           <!-- Principal -->
           <div class="sb-group">
-            <div class="sb-group-label">Principal</div>
+            <div class="sb-group-label" data-i18n="sb_grp_principal">${i18n.t('sb_grp_principal')}</div>
             <a class="sb-item active" data-route="dashboard" href="#" onclick="nav('dashboard')">
               <span class="sb-icon si-blue">📊</span>
-              <span>Tableau de bord</span>
+              <span data-i18n="dashboard">${i18n.t('dashboard')}</span>
             </a>
           </div>
 
           <!-- Gestion (ordre : Individus, Organisations, Bénéficiaires, Demandes, Prestataires, Prestations, Habilitations) -->
           <div class="sb-group">
-            <div class="sb-group-label">Gestion</div>
+            <div class="sb-group-label" data-i18n="sb_grp_gestion">${i18n.t('sb_grp_gestion')}</div>
             <a class="sb-item sb-item-expand" data-route="adherents" href="#" onclick="nav('adherents')">
               <span class="sb-icon si-green">👥</span>
-              <span class="sb-item-label">Individus</span>
+              <span class="sb-item-label" data-i18n="sb_nav_individus">${i18n.t('sb_nav_individus')}</span>
               <span class="sb-caret" onclick="toggleSubgroup(event,'sub-adherents')">▾</span>
             </a>
             <div class="sb-subgroup" id="sub-adherents">
               <a class="sb-subitem" data-route="adherents-asso" href="#" onclick="navFilteredAdh('adherents','Association')">
-                <span class="sb-dot" style="background:#3b82f6"></span>Associations
+                <span class="sb-dot" style="background:#3b82f6"></span><span data-i18n="sb_sub_associations">${i18n.t('sb_sub_associations')}</span>
               </a>
               <a class="sb-subitem" data-route="adherents-ong" href="#" onclick="navFilteredAdh('adherents','ONG')">
-                <span class="sb-dot" style="background:#10b981"></span>ONG
+                <span class="sb-dot" style="background:#10b981"></span><span data-i18n="sb_sub_ong">${i18n.t('sb_sub_ong')}</span>
               </a>
               <a class="sb-subitem" data-route="adherents-mut" href="#" onclick="navFilteredAdh('adherents','Mutuelle')">
-                <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
+                <span class="sb-dot" style="background:#f59e0b"></span><span data-i18n="sb_sub_mutuelles">${i18n.t('sb_sub_mutuelles')}</span>
               </a>
             </div>
             <a class="sb-item sb-item-expand" data-route="organisations" href="#" onclick="nav('organisations')">
               <span class="sb-icon si-violet">🏢</span>
-              <span class="sb-item-label">Toutes les organisations</span>
+              <span class="sb-item-label" data-i18n="sb_nav_toutesorg">${i18n.t('sb_nav_toutesorg')}</span>
               <span class="sb-caret" onclick="toggleSubgroup(event,'sub-organisations')">▾</span>
             </a>
             <div class="sb-subgroup" id="sub-organisations">
               <a class="sb-subitem" data-route="organisations-asso" href="#" onclick="navFiltered('organisations','Association')">
-                <span class="sb-dot" style="background:#3b82f6"></span>Associations
+                <span class="sb-dot" style="background:#3b82f6"></span><span data-i18n="sb_sub_associations">${i18n.t('sb_sub_associations')}</span>
               </a>
               <a class="sb-subitem" data-route="organisations-ong" href="#" onclick="navFiltered('organisations','ONG')">
-                <span class="sb-dot" style="background:#10b981"></span>ONG
+                <span class="sb-dot" style="background:#10b981"></span><span data-i18n="sb_sub_ong">${i18n.t('sb_sub_ong')}</span>
               </a>
               <a class="sb-subitem" data-route="organisations-mut" href="#" onclick="navFiltered('organisations','Mutuelle')">
-                <span class="sb-dot" style="background:#f59e0b"></span>Mutuelles
+                <span class="sb-dot" style="background:#f59e0b"></span><span data-i18n="sb_sub_mutuelles">${i18n.t('sb_sub_mutuelles')}</span>
               </a>
             </div>
             <a class="sb-item" data-route="beneficiaires" href="#" onclick="nav('beneficiaires')">
               <span class="sb-icon si-amber">🤝</span>
-              <span>Bénéficiaires</span>
+              <span data-i18n="beneficiaires">${i18n.t('beneficiaires')}</span>
             </a>
             <a class="sb-item" data-route="demandes" href="#" onclick="nav('demandes')" id="demNav">
               <span class="sb-icon si-indigo">📨</span>
-              <span>Demandes d'adhésion</span>
+              <span data-i18n="demandes">${i18n.t('demandes')}</span>
               <span class="sb-badge" id="demBadge" style="display:none"></span>
             </a>
             <a class="sb-item" data-route="prestataires" href="#" onclick="nav('prestataires')">
               <span class="sb-icon si-red">🩺</span>
-              <span>Prestataires</span>
+              <span data-i18n="prestataires">${i18n.t('prestataires')}</span>
             </a>
             <a class="sb-item" data-route="prestations" href="#" onclick="nav('prestations')">
               <span class="sb-icon si-red">🛠️</span>
-              <span>Prestations</span>
+              <span data-i18n="prestations">${i18n.t('prestations')}</span>
             </a>
             <a class="sb-item" data-route="habilitation" href="#" onclick="nav('habilitation')">
               <span class="sb-icon si-rose">🔐</span>
-              <span>Habilitations</span>
+              <span data-i18n="habilitation">${i18n.t('habilitation')}</span>
             </a>
           </div>
 
           <!-- Opérations -->
           <div class="sb-group">
-            <div class="sb-group-label">Opérations</div>
+            <div class="sb-group-label" data-i18n="sb_grp_operations">${i18n.t('sb_grp_operations')}</div>
             <a class="sb-item" data-route="paiements" href="#" onclick="nav('paiements')">
               <span class="sb-icon si-orange">💰</span>
-              <span>Paiements</span>
+              <span data-i18n="paiements">${i18n.t('paiements')}</span>
             </a>
             <a class="sb-item" data-route="remboursements" href="#" onclick="nav('remboursements')">
               <span class="sb-icon si-red">↩️</span>
-              <span>Remboursements</span>
+              <span data-i18n="remboursements">${i18n.t('remboursements')}</span>
             </a>
             <a class="sb-item" data-route="dettes" href="#" onclick="nav('dettes')">
               <span class="sb-icon si-amber">💳</span>
-              <span>Dettes</span>
+              <span data-i18n="dettes">${i18n.t('dettes')}</span>
             </a>
             <a class="sb-item" data-route="evenements" href="#" onclick="nav('evenements')">
               <span class="sb-icon si-teal">📅</span>
-              <span>Événements</span>
+              <span data-i18n="evenements">${i18n.t('evenements')}</span>
             </a>
             <a class="sb-item" data-route="besoins-admin" href="#" onclick="nav('besoins-admin')">
               <span class="sb-icon si-cyan">📋</span>
-              <span>Expression des Besoins</span>
+              <span data-i18n="besoins-admin">${i18n.t('besoins-admin')}</span>
             </a>
             <a class="sb-item" data-route="opportunites" href="#" onclick="nav('opportunites')">
               <span class="sb-icon si-lime">🔍</span>
-              <span>Recherche des opportunités</span>
+              <span data-i18n="opportunites">${i18n.t('opportunites')}</span>
             </a>
           </div>
 
           <!-- Administration -->
           <div class="sb-group">
-            <div class="sb-group-label">Administration</div>
+            <div class="sb-group-label" data-i18n="sb_grp_administration">${i18n.t('sb_grp_administration')}</div>
             <a class="sb-item" data-route="utilisateurs" href="#" onclick="nav('utilisateurs')">
               <span class="sb-icon si-slate">👤</span>
-              <span>Utilisateurs</span>
+              <span data-i18n="utilisateurs">${i18n.t('utilisateurs')}</span>
             </a>
             <a class="sb-item" data-route="piste-audit" href="#" onclick="nav('piste-audit')">
               <span class="sb-icon si-stone">📜</span>
-              <span>Piste d'audit</span>
+              <span data-i18n="piste-audit">${i18n.t('piste-audit')}</span>
             </a>
             <a class="sb-item" data-route="sauvegarde" href="#" onclick="nav('sauvegarde')">
               <span class="sb-icon si-sky">💾</span>
-              <span>Sauvegarde / Restauration</span>
+              <span data-i18n="sauvegarde">${i18n.t('sauvegarde')}</span>
             </a>
             <a class="sb-item" data-route="impressions" href="#" onclick="nav('impressions')">
               <span class="sb-icon si-violet">🖨️</span>
-              <span>Impressions</span>
+              <span data-i18n="impressions">${i18n.t('impressions')}</span>
             </a>
             <a class="sb-item" data-route="contenu" href="#" onclick="nav('contenu')">
               <span class="sb-icon si-teal">📰</span>
-              <span>Contenu</span>
+              <span data-i18n="contenu">${i18n.t('contenu')}</span>
             </a>
             <a class="sb-item" data-route="db-admin" href="#" onclick="nav('db-admin')">
               <span class="sb-icon si-slate">🗄️</span>
-              <span>Base de données</span>
+              <span data-i18n="db-admin">${i18n.t('db-admin')}</span>
             </a>
             <a class="sb-item" data-route="configuration" href="#" onclick="nav('configuration')">
               <span class="sb-icon si-amber">⚙️</span>
-              <span>Configuration</span>
+              <span data-i18n="configuration">${i18n.t('configuration')}</span>
             </a>
           </div>`;
 
@@ -290,28 +297,13 @@ function showShell() {
         <div class="sb-brand">
           <img src="${isGestionnaire && user.orgLogo ? user.orgLogo : '/images/logo.svg'}" class="sb-logo" alt="${isGestionnaire ? (user.orgName||'Organisation') : 'SoliDev'}">
           <div>
-            <span class="sb-name">SoliDev</span>
+            <span class="sb-name">${isGestionnaire && user.orgName ? user.orgName : 'SoliDev'}</span>
             <span class="sb-tagline" data-i18n="sbTagline">${i18n.t('sbTagline')}</span>
           </div>
         </div>
 
         <!-- Navigation -->
         <nav class="sb-nav">${isGestionnaire ? navGestionnaire : isAdherent ? navAdherent : navAdmin}</nav>
-
-        <!-- User card -->
-        <div class="sb-footer">
-          <div class="sb-user-card">
-            ${user.photo
-              ? `<img class="avatar" style="width:34px;height:34px;object-fit:cover;border-radius:50%" src="${user.photo}" alt="${displayName}">`
-              : `<div class="avatar">${initials}</div>`
-            }
-            <div>
-              <span class="sb-uname">${displayName}</span>
-              <span class="sb-urole">${roleLabel}</span>
-            </div>
-            <div class="sb-online"></div>
-          </div>
-        </div>
       </aside>
       <div class="sidebar-overlay" id="sidebarOverlay" onclick="document.getElementById('sidebar').classList.remove('open');document.getElementById('sidebarOverlay').classList.remove('active')"></div>
       <main id="main">
@@ -328,16 +320,16 @@ function showShell() {
           <div class="tb-right">
             <!-- Notifications -->
             <div class="notif-menu" id="notifMenu">
-              <button class="notif-menu-btn" onclick="toggleNotifMenu(event)" title="Notifications">
+              <button class="notif-menu-btn" onclick="toggleNotifMenu(event)" title="${i18n.t('notif_title')}">
                 🔔<span class="notif-badge" id="notifBadge" style="display:none">0</span>
               </button>
               <div class="notif-dropdown" id="notifDropdown">
                 <div class="notif-dropdown-hd">
-                  <span>Notifications</span>
-                  <button class="notif-mark-all" onclick="marquerToutesNotifsLues()">Tout marquer lu</button>
+                  <span data-i18n="notif_title">${i18n.t('notif_title')}</span>
+                  <button class="notif-mark-all" onclick="marquerToutesNotifsLues()" data-i18n="notif_markall">${i18n.t('notif_markall')}</button>
                 </div>
                 <div class="notif-list" id="notifList">
-                  <div class="notif-empty">Chargement…</div>
+                  <div class="notif-empty" data-i18n="loading">${i18n.t('loading')}</div>
                 </div>
               </div>
             </div>
@@ -369,9 +361,9 @@ function showShell() {
                   </div>
                 </div>
                 <div class="ud-sep"></div>
-                <button class="ud-item" onclick="closeUserMenu();nav('dashboard')">📊 Tableau de bord</button>
+                <button class="ud-item" onclick="closeUserMenu();nav('dashboard')">📊 ${i18n.t('dashboard')}</button>
                 <div class="ud-sep"></div>
-                <button class="ud-item ud-logout" onclick="doLogout()">🚪 Déconnexion</button>
+                <button class="ud-item ud-logout" onclick="doLogout()">🚪 ${i18n.t('logout')}</button>
               </div>
             </div>
           </div>
@@ -423,13 +415,15 @@ function nav(route) {
   );
 }
 
+const TYPE_FILTER_I18N_KEY = { Association: 'sb_sub_associations', ONG: 'sb_sub_ong', Mutuelle: 'sb_sub_mutuelles' };
+
 function navFiltered(route, typeFilter) {
   sessionStorage.setItem('orgTypeFilter', typeFilter);
   const alias = route + '-' + typeFilter.toLowerCase().replace(/é/g,'e').replace(/[^a-z]/g,'').substring(0,4);
   document.querySelectorAll('.sb-item,.sb-subitem').forEach(a =>
     a.classList.toggle('active', a.dataset.route === 'organisations-' + typeFilter.substring(0,3).toLowerCase())
   );
-  document.getElementById('topTitle').textContent = typeFilter + 's';
+  document.getElementById('topTitle').textContent = i18n.t(TYPE_FILTER_I18N_KEY[typeFilter]) || (typeFilter + 's');
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sub-organisations')?.classList.add('open');
   router.navigate(route);
@@ -440,7 +434,7 @@ function navFilteredAdh(route, typeFilter) {
   document.querySelectorAll('.sb-item,.sb-subitem').forEach(a =>
     a.classList.toggle('active', a.dataset.route === 'adherents-' + typeFilter.substring(0,3).toLowerCase())
   );
-  document.getElementById('topTitle').textContent = 'Individus — ' + typeFilter + 's';
+  document.getElementById('topTitle').textContent = `${i18n.t('sb_nav_individus')} — ${i18n.t(TYPE_FILTER_I18N_KEY[typeFilter]) || (typeFilter + 's')}`;
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sub-adherents')?.classList.add('open');
   router.navigate(route);

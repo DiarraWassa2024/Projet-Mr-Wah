@@ -80,13 +80,6 @@ function baseIdentifiantOrganisation(nomOrg) {
   return mots.map(m => m[0]).join('');
 }
 
-/** Identifiant d'adhérent basé sur son prénom et nom (ex. "Moussa Soude" → "msoude"). */
-function baseIdentifiantAdherent(prenom, nom) {
-  const p = slugifier(prenom).split(/\s+/).filter(Boolean)[0] || '';
-  const n = slugifier(nom).replace(/\s+/g, '');
-  return `${p[0] || ''}${n}` || 'adh';
-}
-
 // Mots simples (thème solidarité/nature) utilisés pour générer des mots de passe mémorisables
 // plutôt qu'une suite de caractères aléatoires illisible.
 const MOTS_MDP = [
@@ -151,10 +144,16 @@ const DemandeService = {
     }
 
     let idAdhCible = null;
+    let numAdherent = null;
 
     // Créer l'adhérent dans GPOTB02_Adherent si c'est une demande individuelle
     if (demande.typeOrg === 'Individu') {
-      const numAdherent = await AdherentRepository.generateNumAdherent(demande.numAgr || 'IND');
+      // Une même personne (même email) peut adhérer à plusieurs organisations : son numéro
+      // d'adhérent (suffixe après le dernier tiret) doit rester identique partout — seul
+      // l'identifiant de l'organisation change. On réutilise donc le suffixe déjà attribué s'il
+      // existe (adhésion précédente ailleurs sur la plateforme).
+      const suffixeExistant = demande.emailOrg ? await AdherentRepository.findSuffixByEmail(demande.emailOrg) : null;
+      numAdherent = await AdherentRepository.generateNumAdherent(demande.numAgr || 'IND', suffixeExistant);
       const result = await AdherentRepository.create({
         NomAdh:        demande.repNom       || demande.nomOrg,
         PrenAdh:       demande.repPrenom    || null,
@@ -228,18 +227,21 @@ const DemandeService = {
     // point est atteint pour un email déjà lié à un compte (ne devrait pas arriver, la soumission
     // publique le bloque en amont), on réutilise ce compte sans le modifier plutôt que d'échouer.
     let username = null, password = null, idUserCible = null;
+    let usernameExistant = null;
     if (demande.emailOrg) {
       const existingUser = await UserRepository.findByEmail(demande.emailOrg);
       if (existingUser) {
+        // Compte déjà créé lors d'une adhésion précédente (même email, autre organisation) —
+        // on ne régénère ni identifiant ni mot de passe, la personne se connecte avec ceux
+        // qu'elle a déjà reçus ; on les rappelle dans l'email pour éviter toute confusion.
         idUserCible = existingUser.idUser;
+        usernameExistant = existingUser.username;
       } else {
-        let userBase;
-        if (idAdhCible) {
-          const adh = await AdherentRepository.findByIdFull(idAdhCible);
-          userBase = baseIdentifiantAdherent(adh.PrenAdh, adh.NomAdh);
-        } else {
-          userBase = baseIdentifiantOrganisation(demande.nomOrg);
-        }
+        // L'identifiant de connexion d'un adhérent est son NumAdherent codifié (CodePays+CodeType+
+        // XXXX de l'organisation + YYYY de l'adhérent), en minuscules et sans tirets.
+        const userBase = idAdhCible
+          ? numAdherent.toLowerCase().replace(/-/g, '')
+          : baseIdentifiantOrganisation(demande.nomOrg);
         username = await genererIdentifiantUnique(userBase);
         password = genererMotDePasse();
         const passwordHash = await AuthService.hashPassword(password);
@@ -252,7 +254,11 @@ const DemandeService = {
     }
 
     const mailResult = await emailSvc.sendMail(
-      emailSvc.emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise: codeDeviseFinal, dejaPayee })
+      emailSvc.emailAccepteeAvecIdentifiants(demande, {
+        username, password, montantAnnuel, codeDevise: codeDeviseFinal, dejaPayee,
+        numAgrOrganisation: idAdhCible ? numAgrCible : null,
+        usernameExistant,
+      })
     );
 
     // Code de confirmation par SMS/WhatsApp — alternative pour payer sans se connecter (si pas déjà payé)
@@ -510,6 +516,31 @@ const DemandeService = {
     const [[demandeRow]] = await db.execute(
       `SELECT 1 FROM SD_DemandeAdhesion WHERE emailOrg = ? AND statutAdhesion = 'En attente de validation'`,
       [email]
+    );
+    return !!demandeRow;
+  },
+
+  /** Rôle du compte déjà lié à cet email sur la plateforme, ou null si l'email est libre. */
+  async roleCompteExistant(email) {
+    if (!email) return null;
+    const [[row]] = await db.execute('SELECT role FROM GPOTB_Users WHERE email = ?', [email]);
+    return row ? row.role : null;
+  },
+
+  /**
+   * Un même individu (même email) peut adhérer à PLUSIEURS organisations — seule une nouvelle
+   * demande vers une organisation où il est déjà membre (ou déjà en attente de validation) doit
+   * être bloquée, pas les demandes vers les autres organisations.
+   */
+  async dejaMembreDe(email, numAgr) {
+    if (!email || !numAgr) return false;
+    const [[adhRow]] = await db.execute(
+      `SELECT 1 FROM GPOTB02_Adherent WHERE EmailAdh = ? AND NumAgr = ?`, [email, numAgr]
+    );
+    if (adhRow) return true;
+    const [[demandeRow]] = await db.execute(
+      `SELECT 1 FROM SD_DemandeAdhesion WHERE emailOrg = ? AND numAgr = ? AND statutAdhesion = 'En attente de validation'`,
+      [email, numAgr]
     );
     return !!demandeRow;
   },

@@ -38,6 +38,7 @@ router.register('besoins-admin', async () => {
               <div class="dem-info-grid">
                 <div class="dem-info-item"><span>Nom</span><strong>${b.nom}</strong></div>
                 <div class="dem-info-item"><span>Email</span><strong>${b.email||'—'}</strong></div>
+                <div class="dem-info-item"><span>Organisation ciblée</span><strong>${b.organisation||'—'}</strong></div>
                 <div class="dem-info-item"><span>Type besoin</span><strong>${b.typeBesoin||'—'}</strong></div>
                 <div class="dem-info-item"><span>Date soumission</span><strong>${b.dateDemande?new Date(b.dateDemande).toLocaleDateString('fr-FR'):'—'}</strong></div>
               </div>
@@ -91,12 +92,13 @@ router.register('besoins-admin', async () => {
       <div class="table-wrap">
         ${besoins.length ? `
         <table class="table">
-          <thead><tr><th>Nom</th><th>Email</th><th>Type de besoin</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Nom</th><th>Email</th><th>Organisation ciblée</th><th>Type de besoin</th><th>Date</th><th>Statut</th><th>Actions</th></tr></thead>
           <tbody>
             ${besoins.map((b,i)=>`
               <tr style="animation-delay:${i*25}ms">
                 <td><strong>${b.nom}</strong></td>
                 <td>${b.email||'—'}</td>
+                <td>${b.organisation||'—'}</td>
                 <td>${b.typeBesoin||'—'}</td>
                 <td>${fmt(b.dateDemande)}</td>
                 <td>${badge(b.statut||'En attente')}</td>

@@ -88,9 +88,6 @@ function renderImp() {
           <button class="imp-btn imp-btn-green" onclick="exportExcel()">
             📊 Excel
           </button>
-          <button class="imp-btn imp-btn-gray" onclick="exportCSV()">
-            ⬇️ CSV
-          </button>
           ` : ''}
           <button class="imp-btn imp-btn-blue" onclick="openPDF()">
             📄 PDF
@@ -761,40 +758,6 @@ function exportExcel() {
       URL.revokeObjectURL(a.href);
     })
     .catch(e => alert('Erreur export : ' + e.message));
-}
-
-function exportCSV() {
-  logImpression('EXPORT_CSV', impState.type);
-  const isAdh = !impState.type.includes('ben');
-  const data  = impState.selectAll
-    ? impState.data
-    : impState.data.filter(r => impState.selected.has(String(r.idAdh || r.idBenef)));
-
-  let csv;
-  const BOM = '﻿';
-  if (isAdh) {
-    const headers = ['N° Adhérent','Nom','Prénom','Email','Téléphone','Fonction','Organisation','Rôle','Statut','Date Adhésion','Pays'];
-    csv = BOM + headers.join(';') + '\n' + data.map(r =>
-      [r.NumAdherent,r.NomAdh,r.PrenAdh,r.EmailAdh||'',r.TelAdh||'',r.FonctionAdh||'',
-       r.LibOrg||'',r.LibRole||'',r.LibStatut||'',
-       r.DateAdhesion?r.DateAdhesion.slice(0,10):'',r.CodePays||'']
-      .map(v => `"${String(v).replace(/"/g,'""')}"`)
-      .join(';')).join('\n');
-  } else {
-    const headers = ['N° Bénéf.','Nom','Prénom','Date Naiss.','Email','Téléphone','Lien','Type','Organisation','Adhérent','Statut'];
-    csv = BOM + headers.join(';') + '\n' + data.map(r =>
-      [r.NumBenef,r.NomBenef,r.PrenomBenef,r.DateNaissBenef?r.DateNaissBenef.slice(0,10):'',
-       r.EmailBenef||'',r.TelBenef||'',r.LienParente||'',r.TypeBenef||'',
-       r.LibOrg||'',r.NomAdh?`${r.NomAdh} ${r.PrenAdh}`:'',r.LibStatut||'']
-      .map(v => `"${String(v).replace(/"/g,'""')}"`)
-      .join(';')).join('\n');
-  }
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
-  a.download = `${isAdh ? 'Adherents' : 'Beneficiaires'}_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 async function logImpression(action, type) {

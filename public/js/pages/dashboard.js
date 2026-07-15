@@ -710,21 +710,20 @@ async function renderAdherentDashboard(app, user) {
 
   app.innerHTML = `<div class="dash-loading"><div class="dash-spinner"></div></div>`;
   try {
-    const [adhRows, orgRows, paiements, beneficiaires, dettes] = await Promise.all([
+    const [adhRows, mesOrganisations, paiements, beneficiaires, dettes] = await Promise.all([
       api.get('/adherents').catch(() => []),
-      api.get('/organisations').catch(() => []),
+      api.get('/adherents/mes-organisations').catch(() => []),
       api.get('/paiements').catch(() => []),
       api.get('/beneficiaires').catch(() => []),
       api.get('/dettes').catch(() => []),
     ]);
     const adh = adhRows[0] || null;
-    const org = orgRows[0] || null;
-    render(adh, org, paiements, beneficiaires, dettes);
+    render(adh, mesOrganisations || [], paiements, beneficiaires, dettes);
   } catch (err) {
     app.innerHTML = `<div class="msg error">${err.message}</div>`;
   }
 
-  function render(adh, org, paiements, beneficiaires, dettes) {
+  function render(adh, mesOrganisations, paiements, beneficiaires, dettes) {
     const statut = adh ? (STATUT_BADGE[adh.IdStatut] || { label: '—', color: '#6b7280', bg: '#f3f4f6' }) : null;
     const nomComplet = adh ? [adh.PrenAdh, adh.NomAdh].filter(Boolean).join(' ') : user.username;
     const totalPaye = (paiements||[]).filter(p => p.Statut === 'Payé' || p.Statut === 'Validé')
@@ -758,6 +757,7 @@ async function renderAdherentDashboard(app, user) {
     }).join('') || `<tr><td colspan="4" class="dt-empty">Aucune dette en cours</td></tr>`;
 
     window._monAdhId = adh?.idAdh || null;
+    window._monAdhProfil = adh || null;
     window._mesBeneficiaires = beneficiaires || [];
 
     const benefRows = (beneficiaires||[]).map((b,i) => `
@@ -783,7 +783,7 @@ async function renderAdherentDashboard(app, user) {
       </div>
 
       <div class="dk-grid dk-grid-5">
-        <div class="dk-card dk-violet"><div class="dk-header"><div class="dk-icon dk-iviolet">🏢</div></div><div class="dk-value">${org?1:0}</div><div class="dk-label">Organisation</div><div class="dk-sub">${org ? org.LibOrg : 'aucune'}</div></div>
+        <div class="dk-card dk-violet"><div class="dk-header"><div class="dk-icon dk-iviolet">🏢</div></div><div class="dk-value">${mesOrganisations.length}</div><div class="dk-label">Organisation${mesOrganisations.length > 1 ? 's' : ''}</div><div class="dk-sub">${mesOrganisations.length ? (mesOrganisations.length > 1 ? `${mesOrganisations.length} organisations` : mesOrganisations[0].LibOrg) : 'aucune'}</div></div>
         <div class="dk-card dk-amber" style="cursor:pointer" onclick="nav('paiements')"><div class="dk-header"><div class="dk-icon dk-iamber">💰</div></div><div class="dk-value">${(paiements||[]).length}</div><div class="dk-label">Paiements</div><div class="dk-sub">${fmt(totalPaye)} ${topDevise} réglés</div></div>
         <div class="dk-card dk-green"><div class="dk-header"><div class="dk-icon dk-igreen">🤝</div></div><div class="dk-value">${(beneficiaires||[]).length}</div><div class="dk-label">Bénéficiaires</div><div class="dk-sub">déclarés à ma charge</div></div>
       </div>
@@ -796,7 +796,10 @@ async function renderAdherentDashboard(app, user) {
       <div class="dash-panel dash-full" style="margin-bottom:20px">
         <div class="dp-head">
           <div><div class="dp-title">Profil</div><div class="dp-sub">Informations personnelles enregistrées</div></div>
-          ${adh ? `<button class="dp-btn" onclick="ouvrirCarteAdh(${adh.idAdh})">🪪 Voir ma carte</button>` : ''}
+          <div style="display:flex;gap:8px">
+            ${adh ? `<button class="dp-btn" onclick="ouvrirModifierProfilAdh(${adh.idAdh})">✏️ Modifier</button>` : ''}
+            ${adh ? `<button class="dp-btn" onclick="ouvrirCarteAdh(${adh.idAdh})">🪪 Voir ma carte</button>` : ''}
+          </div>
         </div>
         <div style="padding:20px">
           <div class="dem-info-grid">
@@ -810,24 +813,30 @@ async function renderAdherentDashboard(app, user) {
         </div>
       </div>
 
-      ${org ? `
+      ${mesOrganisations.length ? `
       <div class="dash-section-hd">
         <div class="dsh-line"></div>
-        <div class="dsh-title">🏢 Mon organisation</div>
+        <div class="dsh-title">🏢 Mes organisations</div>
         <div class="dsh-line"></div>
       </div>
+      ${mesOrganisations.map(o => `
       <div class="dash-panel dash-full" style="margin-bottom:20px">
+        <div class="dp-head">
+          <div><div class="dp-title">${o.LibOrg || o.NumAgr}</div><div class="dp-sub">${o.LibTypOrg || 'Organisation'}</div></div>
+          ${(() => { const st = STATUT_BADGE[o.IdStatut] || { label: o.LibStatut || '—', color: '#6b7280', bg: '#f3f4f6' };
+            return `<span class="dw-badge" style="background:${st.bg};color:${st.color}">${st.label}</span>`; })()}
+        </div>
         <div style="padding:20px">
           <div class="dem-info-grid">
-            ${infoRow('Nom', org.LibOrg)}
-            ${infoRow('Type', org.LibTypOrg)}
-            ${infoRow('Pays', org.LibPays || org.CodePays)}
-            ${infoRow('Email', org.EmailOrg)}
-            ${infoRow('Téléphone', org.TelOrg)}
-            ${infoRow('Siège', org.SiegeOrg)}
+            ${infoRow('Mon rôle', o.FonctionAdh)}
+            ${infoRow('Pays', o.LibPays)}
+            ${infoRow('Email', o.EmailOrg)}
+            ${infoRow('Téléphone', o.TelOrg)}
+            ${infoRow('Siège', o.SiegeOrg)}
+            ${infoRow("Date d'adhésion", o.DateAdhesion ? fmtDate(o.DateAdhesion) : null)}
           </div>
         </div>
-      </div>` : ''}
+      </div>`).join('')}` : ''}
 
       <div class="dash-section-hd">
         <div class="dsh-line"></div>
@@ -870,6 +879,71 @@ async function renderAdherentDashboard(app, user) {
         <div class="ra-list">${benefRows}</div>
       </div>`;
   }
+}
+
+/* ── Modification du profil adhérent (auto-service, depuis le tableau de bord) ─────────── */
+function ouvrirModifierProfilAdh(idAdh) {
+  const adh = window._monAdhProfil;
+  if (!adh) { showToast('Profil adhérent introuvable', 'error'); return; }
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="editProfilModal">
+      <div class="modal" style="max-width:480px">
+        <div class="modal-header">
+          <h3>✏️ Modifier mes informations</h3>
+          <button class="modal-close" id="closeEditProfilModal">×</button>
+        </div>
+        <div style="padding:20px">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="epEmail" value="${adh.EmailAdh || ''}">
+          </div>
+          <div class="form-group">
+            <label>Téléphone</label>
+            <input type="text" id="epTel" value="${adh.TelAdh || ''}">
+          </div>
+          <div class="form-group">
+            <label>Adresse</label>
+            <input type="text" id="epAdresse" value="${adh.AdrAdh || ''}">
+          </div>
+          <div class="form-group">
+            <label>Profession</label>
+            <input type="text" id="epProfession" value="${adh.Profession || ''}">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" id="cancelEditProfilModal">Annuler</button>
+            <button class="btn btn-primary" id="saveEditProfilModal">Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </div>`);
+
+  const close = () => document.getElementById('editProfilModal')?.remove();
+  document.getElementById('closeEditProfilModal').onclick  = close;
+  document.getElementById('cancelEditProfilModal').onclick = close;
+  document.getElementById('saveEditProfilModal').onclick = async () => {
+    const email = document.getElementById('epEmail').value.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Email invalide', 'error'); return; }
+
+    try {
+      // Le PUT /api/adherents/:id remplace l'intégralité de la fiche — on renvoie donc toutes
+      // les valeurs existantes (non éditables ici) en plus des 4 champs modifiables, pour ne pas
+      // écraser DateAdhesion, FonctionAdh, DateNaissAdh, etc. avec des null.
+      await api.put(`/adherents/${idAdh}`, {
+        NomAdh: adh.NomAdh, PrenAdh: adh.PrenAdh,
+        DateNaissAdh: adh.DateNaissAdh, LieuNaissAdh: adh.LieuNaissAdh,
+        NumAgr: adh.NumAgr, IdRole: adh.IdRole, DateAdhesion: adh.DateAdhesion,
+        FonctionAdh: adh.FonctionAdh, Nationalite: adh.Nationalite,
+        CodePays: adh.CodePays, NumCNI: adh.NumCNI, Sexe: adh.Sexe,
+        EmailAdh: email, TelAdh: document.getElementById('epTel').value.trim(),
+        AdrAdh: document.getElementById('epAdresse').value.trim(),
+        Profession: document.getElementById('epProfession').value.trim(),
+      });
+      showToast('Informations mises à jour', 'success');
+      close();
+      router.navigate('dashboard');
+    } catch (e) { showToast(e.message, 'error'); }
+  };
 }
 
 /* ── Ouverture de la carte officielle (adhérent / bénéficiaire) dans une fenêtre popup ─── */

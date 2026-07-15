@@ -5,7 +5,7 @@
 const PAYS_SOLIDEV = [
   { code:'CIV', nom:"Côte d'Ivoire", drapeau:'🇨🇮', devise:'XOF', lang:'fr', timezone:'Africa/Abidjan'       },
   { code:'MLI', nom:'Mali',           drapeau:'🇲🇱', devise:'XOF', lang:'fr', timezone:'Africa/Bamako'         },
-  { code:'SEN', nom:'Sénégal',        drapeau:'🇸🇳', devise:'XOF', lang:'fr', timezone:'Africa/Dakar'          },
+  { code:'NGA', nom:'Nigeria',        drapeau:'🇳🇬', devise:'NGN', lang:'fr', timezone:'Africa/Lagos'          },
   { code:'BFA', nom:'Burkina Faso',   drapeau:'🇧🇫', devise:'XOF', lang:'fr', timezone:'Africa/Ouagadougou'    },
   { code:'BEN', nom:'Bénin',          drapeau:'🇧🇯', devise:'XOF', lang:'fr', timezone:'Africa/Porto-Novo'     },
   { code:'MDG', nom:'Madagascar',     drapeau:'🇲🇬', devise:'MGA', lang:'fr', timezone:'Indian/Antananarivo'   },
@@ -22,12 +22,17 @@ const SD_I18N = {
     cta_bsn:     'Exprimer un besoin',
     cta_cnx:     'Se connecter',
     cta_don:     'Faire un don',
+    cta_adh_sub: 'Individu · Organisation',
+    cta_bsn_sub: 'Sans inscription',
+    cta_cnx_sub: 'Espace adhérent',
+    cta_don_sub: 'Soutenez SoliDev',
     stat1_n:     '6',    stat1_l: 'Pays',
     stat2_n:     '3',    stat2_l: "Types d'orgs",
     stat3_n:     '12+',  stat3_l: 'Modules',
-    stat4_n:     '∞',    stat4_l: 'Associations',
+    stat4_n:     '8+',   stat4_l: 'Organisations',
     nav_adh:     'Adhésion',
     nav_bsn:     'Besoins',
+    nav_carte:   '🗺️ Carte',
     nav_cnx:     'Connexion',
     nav_don:     'Faire un don',
     sec_adh_tag: 'Rejoindre SoliDev',
@@ -42,8 +47,38 @@ const SD_I18N = {
     sec_don_tag: 'Soutenez SoliDev',
     sec_don_h:   'Faire un don',
     sec_don_sub: "Votre soutien aide des milliers d'associations africaines à se structurer et prospérer.",
+    ind_title:   'Individu',
+    ind_desc:    'Adhésion personnelle à une organisation déjà inscrite sur SoliDev.',
+    ind_btn:     "Adhérer en tant qu'individu →",
+    org_title:   'Organisation',
+    org_desc:    'Enregistrez votre association, ONG ou mutuelle sur la plateforme.',
+    org_btn:     'Enregistrer mon organisation →',
+    bsn_title:   'Décrire un besoin communautaire',
+    bsn_desc:    'Financement, matériel, formation, juridique, santé… Aucune inscription requise.',
+    bsn_btn:     'Exprimer un besoin →',
+    cnx_title:   'Accéder à mon espace',
+    cnx_desc:    'Adhérent, organisation ou administrateur — connectez-vous à votre espace personnel.',
+    cnx_btn:     'Se connecter →',
+    cnx_verif:   '📱 Vous avez reçu un code de confirmation par SMS/WhatsApp ?',
+    don_title:   'Soutenir SoliDev',
+    don_desc:    'Un don ponctuel ou récurrent, par mobile money, virement ou espèces.',
+    don_btn:     'Faire un don →',
+    actu_tag:    'Vie du réseau',
+    actu_h:      'Actualités récentes',
+    actu_sub:    'Les dernières nouvelles des organisations membres de SoliDev.',
+    faq_tag:     'Questions fréquentes',
+    faq_h:       'FAQ',
+    faq_sub:     "Tout ce qu'il faut savoir avant de rejoindre SoliDev.",
+    ft_brand_sub:   'Solidarité & Développement',
+    ft_nav_adh:     'Adhésion',
+    ft_nav_bsn:     'Besoins',
+    ft_nav_cnx:     'Connexion',
+    ft_nav_don:     'Don',
+    ft_nav_admin:   'Administration',
     ft_rights:   '© 2026 SoliDev. Tous droits réservés.',
     ft_africa:   'Plateforme panafricaine · MIAGE 2026',
+    org_select_placeholder: 'Choisir une ou plusieurs organisations déjà inscrites…',
+    org_continue_btn:       "Continuer l'inscription →",
   },
   en: {
     badge:       '🌍 Africa  •  Solidarity  •  Development',
@@ -55,12 +90,17 @@ const SD_I18N = {
     cta_bsn:     'Express a need',
     cta_cnx:     'Sign in',
     cta_don:     'Make a donation',
+    cta_adh_sub: 'Individual · Organisation',
+    cta_bsn_sub: 'No registration',
+    cta_cnx_sub: 'Member space',
+    cta_don_sub: 'Support SoliDev',
     stat1_n:     '6',    stat1_l: 'Countries',
     stat2_n:     '3',    stat2_l: 'Org types',
     stat3_n:     '12+',  stat3_l: 'Modules',
-    stat4_n:     '∞',    stat4_l: 'Associations',
+    stat4_n:     '8+',   stat4_l: 'Organisations',
     nav_adh:     'Membership',
     nav_bsn:     'Needs',
+    nav_carte:   '🗺️ Map',
     nav_cnx:     'Sign in',
     nav_don:     'Donate',
     sec_adh_tag: 'Join SoliDev',
@@ -75,8 +115,38 @@ const SD_I18N = {
     sec_don_tag: 'Support SoliDev',
     sec_don_h:   'Make a donation',
     sec_don_sub: "Your support helps thousands of African associations to structure themselves and thrive.",
+    ind_title:   'Individual',
+    ind_desc:    'Personal membership to an organisation already registered on SoliDev.',
+    ind_btn:     'Join as an individual →',
+    org_title:   'Organisation',
+    org_desc:    'Register your association, NGO or mutual society on the platform.',
+    org_btn:     'Register my organisation →',
+    bsn_title:   'Describe a community need',
+    bsn_desc:    'Funding, equipment, training, legal, health… No registration required.',
+    bsn_btn:     'Express a need →',
+    cnx_title:   'Access my space',
+    cnx_desc:    'Member, organisation or administrator — sign in to your personal space.',
+    cnx_btn:     'Sign in →',
+    cnx_verif:   '📱 Received a confirmation code by SMS/WhatsApp?',
+    don_title:   'Support SoliDev',
+    don_desc:    'A one-off or recurring donation, by mobile money, transfer or cash.',
+    don_btn:     'Make a donation →',
+    actu_tag:    'Network life',
+    actu_h:      'Latest news',
+    actu_sub:    'The latest news from SoliDev member organisations.',
+    faq_tag:     'Frequently asked questions',
+    faq_h:       'FAQ',
+    faq_sub:     'Everything you need to know before joining SoliDev.',
+    ft_brand_sub:   'Solidarity & Development',
+    ft_nav_adh:     'Membership',
+    ft_nav_bsn:     'Needs',
+    ft_nav_cnx:     'Sign in',
+    ft_nav_don:     'Donate',
+    ft_nav_admin:   'Administration',
     ft_rights:   '© 2026 SoliDev. All rights reserved.',
     ft_africa:   'Pan-African platform · MIAGE 2026',
+    org_select_placeholder: 'Choose one or more organisations already registered…',
+    org_continue_btn:       'Continue registration →',
   },
 };
 
@@ -98,10 +168,13 @@ function injectLandingCSS() {
 
 // ── Route ─────────────────────────────────────────────────────
 router.register('landing', () => {
+  document.title = 'SoliDev – Solidarité & Développement';
   injectLandingCSS();
   activeCountryCode = detectCountryCode();
   const pays = PAYS_SOLIDEV.find(p => p.code === activeCountryCode) || PAYS_SOLIDEV[0];
-  currentLang = pays.lang;
+  // La langue est un choix indépendant du pays — mémorisé une fois choisi manuellement,
+  // sinon on retombe sur la langue par défaut du pays détecté.
+  currentLang = detectLangCode(pays.lang);
 
   document.body.className = 'lp-body';
   document.body.innerHTML = buildOnePager(pays);
@@ -110,10 +183,11 @@ router.register('landing', () => {
   setupBurger();
   setupReveal();
   setupFlagBtns(pays.code);
+  setupLangSelect();
   setupOrgSearch();
   loadActualites();
   loadFaq();
-  applyLang(pays.lang);
+  applyLang(currentLang);
   startClock(pays.timezone);
 });
 
@@ -195,7 +269,7 @@ function buildEmblemSVG() {
 // HTML BUILDER
 // ═══════════════════════════════════════════════════════════════
 function buildOnePager(pays) {
-  const t = SD_I18N[pays.lang] || SD_I18N.fr;
+  const t = SD_I18N[currentLang] || SD_I18N.fr;
   return `
 <!-- ── NAV ── -->
 <nav class="lp-nav" id="lpNav">
@@ -206,8 +280,13 @@ function buildOnePager(pays) {
   <div class="lp-nav-links" id="lpNavLinks">
     <button class="lp-nav-link" onclick="landingNav('adhesion')" data-i18n="nav_adh">${t.nav_adh}</button>
     <button class="lp-nav-link" onclick="landingNav('expression-besoins')" data-i18n="nav_bsn">${t.nav_bsn}</button>
+    <button class="lp-nav-link" onclick="landingNav('carte')" data-i18n="nav_carte">${t.nav_carte}</button>
     <button class="lp-nav-link accent" onclick="landingNav('login')" data-i18n="nav_cnx">${t.nav_cnx}</button>
     <button class="lp-nav-link don-link" onclick="landingNav('don')" data-i18n="nav_don">${t.nav_don}</button>
+    <select class="lp-lang-select" id="lpLangSelect" aria-label="Langue / Language">
+      <option value="fr"${currentLang === 'fr' ? ' selected' : ''}>🇫🇷 Français</option>
+      <option value="en"${currentLang === 'en' ? ' selected' : ''}>🇬🇧 English</option>
+    </select>
   </div>
   <button class="lp-nav-burger" id="lpBurger" aria-label="Menu">☰</button>
 </nav>
@@ -234,29 +313,29 @@ function buildOnePager(pays) {
       <button class="lp-hero-card primary" onclick="landingNav('adhesion')">
         <div class="lp-hero-card-icon">🤝</div>
         <div class="lp-hero-card-title" data-i18n="cta_adh">${t.cta_adh}</div>
-        <div class="lp-hero-card-sub">Individu · Organisation</div>
+        <div class="lp-hero-card-sub" data-i18n="cta_adh_sub">${t.cta_adh_sub}</div>
       </button>
       <button class="lp-hero-card" onclick="landingNav('expression-besoins')">
         <div class="lp-hero-card-icon">💬</div>
         <div class="lp-hero-card-title" data-i18n="cta_bsn">${t.cta_bsn}</div>
-        <div class="lp-hero-card-sub">Sans inscription</div>
+        <div class="lp-hero-card-sub" data-i18n="cta_bsn_sub">${t.cta_bsn_sub}</div>
       </button>
       <button class="lp-hero-card" onclick="landingNav('login')">
         <div class="lp-hero-card-icon">🔐</div>
         <div class="lp-hero-card-title" data-i18n="cta_cnx">${t.cta_cnx}</div>
-        <div class="lp-hero-card-sub">Espace adhérent</div>
+        <div class="lp-hero-card-sub" data-i18n="cta_cnx_sub">${t.cta_cnx_sub}</div>
       </button>
       <button class="lp-hero-card gold" onclick="landingNav('don')">
         <div class="lp-hero-card-icon">💛</div>
         <div class="lp-hero-card-title" data-i18n="cta_don">${t.cta_don}</div>
-        <div class="lp-hero-card-sub">Soutenez SoliDev</div>
+        <div class="lp-hero-card-sub" data-i18n="cta_don_sub">${t.cta_don_sub}</div>
       </button>
     </div>
 
     <div class="lp-org-select" id="lpOrgSelect">
       <button type="button" class="lp-org-select-box" id="lpOrgSelectToggle">
         <span class="lp-org-select-icon">🏢</span>
-        <span class="lp-org-select-label" id="lpOrgSelectLabel">Choisir une ou plusieurs organisations déjà inscrites…</span>
+        <span class="lp-org-select-label" id="lpOrgSelectLabel" data-i18n="org_select_placeholder">${t.org_select_placeholder}</span>
         <span class="lp-org-select-caret">▾</span>
       </button>
       <div class="lp-org-dropdown" id="lpOrgDropdown" style="display:none">
@@ -268,8 +347,8 @@ function buildOnePager(pays) {
         </div>
         <div class="lp-org-dropdown-footer">
           <span id="lpOrgSelCount">0 sélectionnée(s)</span>
-          <button type="button" class="lp-org-btn" id="lpOrgContinueBtn" disabled>
-            Continuer l'inscription →
+          <button type="button" class="lp-org-btn" id="lpOrgContinueBtn" disabled data-i18n="org_continue_btn">
+            ${t.org_continue_btn}
           </button>
         </div>
       </div>
@@ -283,7 +362,7 @@ function buildOnePager(pays) {
     <div class="lp-flags" id="lpFlags">
       ${PAYS_SOLIDEV.map(p => `
         <button class="lp-flag-btn${p.code===pays.code?' active':''}"
-                data-code="${p.code}" title="${p.nom}">${p.drapeau}</button>
+                data-code="${p.code}" title="Voir les organisations en ${p.nom} sur la carte">${p.code}</button>
       `).join('')}
     </div>
     <div class="lp-clock" id="lpClock">
@@ -314,15 +393,15 @@ function buildOnePager(pays) {
     <div class="lp-teaser-grid cols-2 lp-reveal">
       <button class="lp-teaser-card" onclick="landingNav('adhesion',{mode:'individu'})">
         <div class="lp-teaser-icon">👤</div>
-        <div class="lp-teaser-title">Individu</div>
-        <div class="lp-teaser-desc">Adhésion personnelle à une organisation déjà inscrite sur SoliDev.</div>
-        <span class="lp-teaser-btn">Adhérer en tant qu'individu →</span>
+        <div class="lp-teaser-title" data-i18n="ind_title">${t.ind_title}</div>
+        <div class="lp-teaser-desc" data-i18n="ind_desc">${t.ind_desc}</div>
+        <span class="lp-teaser-btn" data-i18n="ind_btn">${t.ind_btn}</span>
       </button>
       <button class="lp-teaser-card terracotta" onclick="landingNav('adhesion',{mode:'organisation'})">
         <div class="lp-teaser-icon">🏢</div>
-        <div class="lp-teaser-title">Organisation</div>
-        <div class="lp-teaser-desc">Enregistrez votre association, ONG ou mutuelle sur la plateforme.</div>
-        <span class="lp-teaser-btn">Enregistrer mon organisation →</span>
+        <div class="lp-teaser-title" data-i18n="org_title">${t.org_title}</div>
+        <div class="lp-teaser-desc" data-i18n="org_desc">${t.org_desc}</div>
+        <span class="lp-teaser-btn" data-i18n="org_btn">${t.org_btn}</span>
       </button>
     </div>
   </div>
@@ -340,9 +419,9 @@ function buildOnePager(pays) {
     <div class="lp-teaser-grid cols-1 lp-reveal">
       <button class="lp-teaser-card gold" onclick="landingNav('expression-besoins')">
         <div class="lp-teaser-icon">💬</div>
-        <div class="lp-teaser-title">Décrire un besoin communautaire</div>
-        <div class="lp-teaser-desc">Financement, matériel, formation, juridique, santé… Aucune inscription requise.</div>
-        <span class="lp-teaser-btn">Exprimer un besoin →</span>
+        <div class="lp-teaser-title" data-i18n="bsn_title">${t.bsn_title}</div>
+        <div class="lp-teaser-desc" data-i18n="bsn_desc">${t.bsn_desc}</div>
+        <span class="lp-teaser-btn" data-i18n="bsn_btn">${t.bsn_btn}</span>
       </button>
     </div>
   </div>
@@ -360,14 +439,14 @@ function buildOnePager(pays) {
     <div class="lp-teaser-grid cols-1 lp-reveal">
       <button class="lp-teaser-card" onclick="landingNav('login')">
         <div class="lp-teaser-icon">🔐</div>
-        <div class="lp-teaser-title">Accéder à mon espace</div>
-        <div class="lp-teaser-desc">Adhérent, organisation ou administrateur — connectez-vous à votre espace personnel.</div>
-        <span class="lp-teaser-btn">Se connecter →</span>
+        <div class="lp-teaser-title" data-i18n="cnx_title">${t.cnx_title}</div>
+        <div class="lp-teaser-desc" data-i18n="cnx_desc">${t.cnx_desc}</div>
+        <span class="lp-teaser-btn" data-i18n="cnx_btn">${t.cnx_btn}</span>
       </button>
     </div>
     <p style="text-align:center;margin-top:20px;font-size:13px">
-      <button style="background:none;border:none;cursor:pointer;color:var(--c-indigo);font-weight:600;font-family:inherit;font-size:13px" onclick="landingNav('verification')">
-        📱 Vous avez reçu un code de confirmation par SMS/WhatsApp ?
+      <button style="background:none;border:none;cursor:pointer;color:var(--c-indigo);font-weight:600;font-family:inherit;font-size:13px" onclick="landingNav('verification')" data-i18n="cnx_verif">
+        ${t.cnx_verif}
       </button>
     </p>
   </div>
@@ -385,9 +464,9 @@ function buildOnePager(pays) {
     <div class="lp-teaser-grid cols-1 lp-reveal">
       <button class="lp-teaser-card gold" onclick="landingNav('don')">
         <div class="lp-teaser-icon">💛</div>
-        <div class="lp-teaser-title">Soutenir SoliDev</div>
-        <div class="lp-teaser-desc">Un don ponctuel ou récurrent, par mobile money, virement ou espèces.</div>
-        <span class="lp-teaser-btn">Faire un don →</span>
+        <div class="lp-teaser-title" data-i18n="don_title">${t.don_title}</div>
+        <div class="lp-teaser-desc" data-i18n="don_desc">${t.don_desc}</div>
+        <span class="lp-teaser-btn" data-i18n="don_btn">${t.don_btn}</span>
       </button>
     </div>
   </div>
@@ -398,9 +477,9 @@ function buildOnePager(pays) {
 ════════════════════════════════════════════════════ -->
 <section class="lp-section alt lp-reveal" id="actualites">
   <div class="lp-section-inner wide">
-    <div class="lp-section-tag">Vie du réseau</div>
-    <h2 class="lp-section-title">Actualités récentes</h2>
-    <p class="lp-section-sub">Les dernières nouvelles des organisations membres de SoliDev.</p>
+    <div class="lp-section-tag" data-i18n="actu_tag">${t.actu_tag}</div>
+    <h2 class="lp-section-title" data-i18n="actu_h">${t.actu_h}</h2>
+    <p class="lp-section-sub" data-i18n="actu_sub">${t.actu_sub}</p>
     <div class="lp-actu-grid" id="lpActuGrid">
       <div class="lp-actu-loading">⏳ Chargement…</div>
     </div>
@@ -412,9 +491,9 @@ function buildOnePager(pays) {
 ════════════════════════════════════════════════════ -->
 <section class="lp-section lp-reveal" id="faq">
   <div class="lp-section-inner">
-    <div class="lp-section-tag">Questions fréquentes</div>
-    <h2 class="lp-section-title">FAQ</h2>
-    <p class="lp-section-sub">Tout ce qu'il faut savoir avant de rejoindre SoliDev.</p>
+    <div class="lp-section-tag" data-i18n="faq_tag">${t.faq_tag}</div>
+    <h2 class="lp-section-title" data-i18n="faq_h">${t.faq_h}</h2>
+    <p class="lp-section-sub" data-i18n="faq_sub">${t.faq_sub}</p>
     <div class="lp-faq-list" id="lpFaqList">
       <div class="lp-actu-loading">⏳ Chargement…</div>
     </div>
@@ -428,19 +507,19 @@ function buildOnePager(pays) {
       <img src="/images/logo.svg" class="lp-nav-logo" style="width:36px;height:36px" alt="SoliDev">
       <div>
         <div class="lp-footer-brand-name">SoliDev</div>
-        <div class="lp-footer-brand-sub">Solidarité &amp; Développement</div>
+        <div class="lp-footer-brand-sub" data-i18n="ft_brand_sub">${t.ft_brand_sub}</div>
       </div>
     </div>
     <div class="lp-footer-links">
-      <button class="lp-footer-link" onclick="landingNav('adhesion')">Adhésion</button>
-      <button class="lp-footer-link" onclick="landingNav('expression-besoins')">Besoins</button>
-      <button class="lp-footer-link" onclick="landingNav('login')">Connexion</button>
-      <button class="lp-footer-link" onclick="landingNav('don')">Don</button>
-      <button class="lp-footer-link" onclick="landingNav('login')">Administration</button>
+      <button class="lp-footer-link" onclick="landingNav('adhesion')" data-i18n="ft_nav_adh">${t.ft_nav_adh}</button>
+      <button class="lp-footer-link" onclick="landingNav('expression-besoins')" data-i18n="ft_nav_bsn">${t.ft_nav_bsn}</button>
+      <button class="lp-footer-link" onclick="landingNav('login')" data-i18n="ft_nav_cnx">${t.ft_nav_cnx}</button>
+      <button class="lp-footer-link" onclick="landingNav('don')" data-i18n="ft_nav_don">${t.ft_nav_don}</button>
+      <button class="lp-footer-link" onclick="landingNav('login')" data-i18n="ft_nav_admin">${t.ft_nav_admin}</button>
     </div>
   </div>
   <div class="lp-footer-divider"></div>
-  <p class="lp-footer-copy" data-i18n="ft_africa">${t.ft_africa} · ${t.ft_rights}</p>
+  <p class="lp-footer-copy"><span data-i18n="ft_africa">${t.ft_africa}</span> · <span data-i18n="ft_rights">${t.ft_rights}</span></p>
 </footer>
 `;
 }
@@ -488,8 +567,10 @@ function setupReveal() {
 }
 
 function setupFlagBtns(activeCode) {
+  // Sélectionner un pays amène directement à la carte, filtrée sur ce pays : on y voit les
+  // organisations qui y sont inscrites ainsi que le fond de carte du pays lui-même.
   document.querySelectorAll('.lp-flag-btn').forEach(btn => {
-    btn.addEventListener('click', () => selectCountry(btn.dataset.code));
+    btn.addEventListener('click', () => landingNav('carte', { pays: btn.dataset.code }));
   });
 }
 
@@ -565,7 +646,7 @@ function setupOrgSearch() {
     countEl.textContent = `${n} sélectionnée${n > 1 ? 's' : ''}`;
     contBtn.disabled = n === 0;
     label.textContent = n === 0
-      ? "Choisir une ou plusieurs organisations déjà inscrites…"
+      ? (SD_I18N[currentLang] || SD_I18N.fr).org_select_placeholder
       : [...selected.values()].map(o => o?.LibOrg).filter(Boolean).join(', ');
   }
 
@@ -591,28 +672,22 @@ function detectCountryCode() {
   return 'CIV'; // tous les pays de la plateforme sont francophones
 }
 
-// ── Country selection ─────────────────────────────────────────
-function selectCountry(code) {
-  const pays = PAYS_SOLIDEV.find(p => p.code === code);
-  if (!pays) return;
-  activeCountryCode = code;
-  currentLang       = pays.lang;
-  localStorage.setItem('sd_country', code);
+// ── Langue (indépendante du pays) ──────────────────────────────
+function detectLangCode(defautPays) {
+  const saved = localStorage.getItem('sd_lang');
+  if (saved === 'fr' || saved === 'en') return saved;
+  return defautPays === 'en' ? 'en' : 'fr';
+}
 
-  document.querySelectorAll('.lp-flag-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.code === code)
-  );
+function setupLangSelect() {
+  const sel = document.getElementById('lpLangSelect');
+  if (!sel) return;
+  sel.addEventListener('change', () => changeLang(sel.value));
+}
 
-  const clockEl = document.getElementById('lpClock');
-  if (clockEl) {
-    clockEl.style.opacity = '0';
-    setTimeout(() => {
-      clockEl.innerHTML = `${pays.drapeau} ${pays.nom} · <span id="lpClockTime">--:--:--</span> · ${pays.devise}`;
-      clockEl.style.opacity = '1';
-    }, 200);
-  }
-  startClock(pays.timezone);
-  applyLang(pays.lang);
+function changeLang(lang) {
+  localStorage.setItem('sd_lang', lang);
+  applyLang(lang);
 }
 
 // ── i18n ──────────────────────────────────────────────────────

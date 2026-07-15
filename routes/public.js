@@ -146,21 +146,40 @@ router.post('/adhesion', upload.fields([
 // POST /api/public/besoins
 router.post('/besoins', async (req, res) => {
   try {
-    const { nom, email, typeBesoin, description, typeEntite } = req.body;
+    const { nom, email, typeBesoin, description, typeEntite, numAgr } = req.body;
     if (!nom)         return res.status(400).json({ message: 'Nom obligatoire' });
     if (!description) return res.status(400).json({ message: 'Description obligatoire' });
     if (!email)       return res.status(400).json({ message: 'Email obligatoire' });
+    if (!numAgr)      return res.status(400).json({ message: 'Organisation destinataire obligatoire' });
+
+    const [orgRows] = await db.execute(
+      `SELECT LibOrg FROM GPOTB01_Organisation WHERE NumAgr = ? AND IdStatut = 1`, [numAgr]
+    );
+    if (!orgRows.length) return res.status(400).json({ message: 'Organisation destinataire introuvable' });
+    const libOrg = orgRows[0].LibOrg;
 
     const now = new Date().toISOString().replace('T',' ').split('.')[0];
     const [result] = await db.execute(
-      `INSERT INTO SD_BesoinExprime (nom, email, typeBesoin, typeEntite, description, DateDemande)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [nom, email, typeBesoin||null, typeEntite||null, description, now]
+      `INSERT INTO SD_BesoinExprime (nom, email, typeBesoin, typeEntite, description, numAgr, organisation, DateDemande)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [nom, email, typeBesoin||null, typeEntite||null, description, numAgr, libOrg, now]
     );
 
+    // L'organisation choisie est la destinataire du besoin : ses gestionnaires sont notifiés.
+    NotificationService.idsUsersOrganisation(numAgr).then(ids => {
+      ids.forEach(idUser => NotificationService.notifier({
+        idUser,
+        titre: '💬 Nouvelle expression de besoin',
+        contenu: `${nom} vous a adressé une demande : « ${(description||'').slice(0, 120)}${description && description.length > 120 ? '…' : ''} »`,
+        type: 'systeme',
+        lien: '/besoins-admin',
+      }));
+    }).catch(() => {});
+
     res.status(201).json({
-      message: 'Votre besoin a été enregistré avec succès',
+      message: `Votre besoin a été transmis à ${libOrg}`,
       id: result.insertId,
+      organisation: libOrg,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -379,18 +398,27 @@ router.post('/adhesion-multi', upload.fields([
     if (!dossier?.email) return res.status(400).json({ message: 'Email obligatoire' });
     if (!dossier?.nom)   return res.status(400).json({ message: 'Nom obligatoire' });
     if (!dossier?.sexe)  return res.status(400).json({ message: 'Le sexe est obligatoire' });
-    if (dossier?.dateNaiss) {
+    if (!dossier?.dateNaiss) return res.status(400).json({ message: 'La date de naissance est obligatoire' });
+    {
       const dn = new Date(dossier.dateNaiss);
-      if (isNaN(dn.getTime()))            return res.status(400).json({ message: 'Date de naissance invalide' });
-      if (dn > new Date())                return res.status(400).json({ message: 'La date de naissance ne peut pas être dans le futur' });
-      if (dn > new Date('2010-12-31'))    return res.status(400).json({ message: 'La date de naissance doit être antérieure au 31/12/2010' });
+      if (isNaN(dn.getTime())) return res.status(400).json({ message: 'Date de naissance invalide' });
+      if (dn > new Date())     return res.status(400).json({ message: 'La date de naissance ne peut pas être dans le futur' });
+      const dateLimite18ans = new Date();
+      dateLimite18ans.setFullYear(dateLimite18ans.getFullYear() - 18);
+      if (dn > dateLimite18ans)
+        return res.status(400).json({ message: "Vous devez avoir au moins 18 ans pour vous inscrire en tant qu'adhérent" });
     }
     if (!Array.isArray(orgs) || orgs.length === 0)
       return res.status(400).json({ message: 'Sélectionnez au moins une organisation' });
     if (orgs.length > 10)
       return res.status(400).json({ message: 'Maximum 10 organisations par envoi' });
-    if (await DemandeService.emailDejaUtilise(dossier.email))
-      return res.status(409).json({ message: "Cet email est déjà utilisé sur la plateforme — un email ne peut servir qu'à une seule inscription." });
+    // Un même individu peut adhérer à plusieurs organisations avec le même email (le numéro
+    // d'adhérent lui reste propre, seul l'identifiant d'organisation change dans son identifiant
+    // complet) — on ne bloque donc que si cet email appartient déjà à un compte d'un AUTRE type
+    // (gestionnaire/admin) ; les doublons par organisation sont écartés un par un plus bas.
+    const roleExistant = await DemandeService.roleCompteExistant(dossier.email);
+    if (roleExistant && roleExistant !== 'adherent')
+      return res.status(409).json({ message: "Cet email est déjà utilisé sur la plateforme par un autre type de compte." });
 
     const photoPath    = req.files?.photo?.[0]    ? `/uploads/${req.files.photo[0].filename}`    : null;
     const photoCNIPath = req.files?.photoCNI?.[0] ? `/uploads/${req.files.photoCNI[0].filename}` : null;
@@ -401,7 +429,20 @@ router.post('/adhesion-multi', upload.fields([
     const nomOrg = `${dossier.nom} ${dossier.prenom || ''}`.trim();
 
     const demandes = [];
-    for (const numAgr of orgs) {
+    const dejaMembreOrgs = [];
+    for (const entry of orgs) {
+      // Chaque organisation peut recevoir son propre rôle souhaité (nouveau format
+      // { numAgr, fonctionSouhaitee }) ; on accepte aussi un simple numAgr en chaîne (ancien
+      // format / sélection à une seule organisation), auquel cas on retombe sur le rôle du dossier.
+      const numAgr = typeof entry === 'string' ? entry : entry?.numAgr;
+      const fonctionSouhaitee = (typeof entry === 'string' ? dossier.fonctionSouhaitee : entry?.fonctionSouhaitee) || null;
+      if (!numAgr) continue;
+
+      if (await DemandeService.dejaMembreDe(dossier.email, numAgr)) {
+        dejaMembreOrgs.push(numAgr);
+        continue;
+      }
+
       const [orgRows] = await db.execute(
         `SELECT o.NumAgr, o.LibOrg, t.LibTypOrg AS TypeOrg, o.SiegeOrg, p.LibPays
          FROM GPOTB01_Organisation o
@@ -429,7 +470,7 @@ router.post('/adhesion-multi', upload.fields([
          refDossier, now,
          photoPath, photoCNIPath,
          dossier.sexe || null, dossier.profession || null, dossier.situationMatrimoniale || null,
-         dossier.ville || null, dossier.fonctionSouhaitee || null, dossier.nationalite || null]
+         dossier.ville || null, fonctionSouhaitee, dossier.nationalite || null]
       );
 
       demandes.push({
@@ -442,13 +483,18 @@ router.post('/adhesion-multi', upload.fields([
       });
     }
 
-    if (demandes.length === 0)
+    if (demandes.length === 0) {
+      if (dejaMembreOrgs.length)
+        return res.status(409).json({ message: "Vous êtes déjà membre ou en attente de validation auprès de toutes les organisations sélectionnées." });
       return res.status(400).json({ message: 'Aucune organisation valide sélectionnée' });
+    }
 
     res.status(201).json({
-      message: `${demandes.length} demande(s) d'adhésion envoyée(s)`,
+      message: `${demandes.length} demande(s) d'adhésion envoyée(s)`
+        + (dejaMembreOrgs.length ? ` — ${dejaMembreOrgs.length} organisation(s) ignorée(s) (déjà membre ou en attente)` : ''),
       refDossier,
       demandes,
+      dejaMembreOrgs,
     });
   } catch (err) { res.status(500).json({ message: err.message }); }
 });

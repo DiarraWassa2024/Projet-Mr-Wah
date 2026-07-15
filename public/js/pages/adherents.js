@@ -22,7 +22,10 @@ router.register('adherents', async () => {
     2: [{ action: 'reactiver', label: 'Réactiver', cls: 'btn-wf-reactiver' }],
   };
 
-  const DATE_NAISS_MAX = '2010-12-31';
+  // L'adhérent doit avoir au moins 18 ans — recalculé à chaque chargement de page.
+  const dateNaiss18ans = new Date();
+  dateNaiss18ans.setFullYear(dateNaiss18ans.getFullYear() - 18);
+  const DATE_NAISS_MAX = dateNaiss18ans.toISOString().split('T')[0];
 
   function paysOptsRiches(sel = '') {
     return `<option value="">— Sélectionner —</option>` + Object.values(PAYS_CONFIG).map(p =>
@@ -280,7 +283,7 @@ router.register('adherents', async () => {
           <div class="form-group">
             <label>Date de naissance</label>
             <input type="date" name="DateNaissAdh" value="${adh.DateNaissAdh ? adh.DateNaissAdh.split('T')[0] : ''}" max="${DATE_NAISS_MAX}">
-            <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Doit être antérieure au 31/12/2010</p>
+            <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">L'adhérent doit avoir au moins 18 ans</p>
           </div>
         </div>
         <div class="form-row">

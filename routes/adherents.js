@@ -85,8 +85,10 @@ function validate(body, isCreate) {
   if (body.DateNaissAdh) {
     const d = new Date(body.DateNaissAdh);
     if (isNaN(d.getTime())) return 'Date de naissance invalide';
-    if (d > new Date())               return 'La date de naissance ne peut pas être dans le futur';
-    if (d > new Date('2010-12-31'))   return 'La date de naissance doit être antérieure au 31/12/2010';
+    if (d > new Date()) return 'La date de naissance ne peut pas être dans le futur';
+    const dateLimite18ans = new Date();
+    dateLimite18ans.setFullYear(dateLimite18ans.getFullYear() - 18);
+    if (d > dateLimite18ans) return "L'adhérent doit avoir au moins 18 ans pour s'inscrire";
   }
   return null;
 }
@@ -101,6 +103,17 @@ router.get('/', auth, async (req, res) => {
     const query = { ...req.query };
     if (req.user.role === 'gestionnaire') query.org = req.user.NumAgr;
     ok(res, await AdherentRepository.findAll(query));
+  } catch (err) { serverError(res, err); }
+});
+
+// ── GET /api/adherents/mes-organisations ────────────────────────
+// Un même adhérent peut avoir rejoint plusieurs organisations (une ligne GPOTB02_Adherent par
+// organisation, reliées par le même email) — le compte de connexion, lui, ne pointe que sur l'une
+// d'entre elles (idAdh du JWT). Cette route retourne donc l'ensemble des adhésions par email.
+router.get('/mes-organisations', auth, roles('adherent'), async (req, res) => {
+  try {
+    if (!req.user.email) return ok(res, []);
+    ok(res, await AdherentRepository.findAllByEmail(req.user.email));
   } catch (err) { serverError(res, err); }
 });
 

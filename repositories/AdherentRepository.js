@@ -28,6 +28,21 @@ class AdherentRepository extends BaseRepository {
     `, params);
   }
 
+  /** Toutes les adhésions (une par organisation) d'une même personne, reliées par son email. */
+  async findAllByEmail(email) {
+    return this.query(`
+      SELECT a.idAdh, a.NumAgr, a.FonctionAdh, a.IdStatut, a.DateAdhesion,
+             o.LibOrg, o.EmailOrg, o.TelOrg, o.SiegeOrg, t.LibTypOrg, p.LibPays, s.LibStatut
+      FROM GPOTB02_Adherent a
+      LEFT JOIN GPOTB01_Organisation o     ON a.NumAgr   = o.NumAgr
+      LEFT JOIN GPOTB07_TypeOrganisation t ON t.IdTypOrg = o.IdTypOrg
+      LEFT JOIN GPOTB03_Pays p             ON p.CodePays = o.CodePays
+      LEFT JOIN GPOTB15_Statut s           ON a.IdStatut = s.IdStatut
+      WHERE a.EmailAdh = ?
+      ORDER BY a.DateAdhesion DESC
+    `, [email]);
+  }
+
   async findByIdFull(id) {
     const adh = await this.queryOne(`
       SELECT a.*, o.LibOrg, o.Logo AS OrgLogo, r.LibRole, s.LibStatut
@@ -45,8 +60,28 @@ class AdherentRepository extends BaseRepository {
     return { ...adh, documents: docs, paiements };
   }
 
-  async generateNumAdherent(numAgr) {
+  /** Le suffixe (YYYY) d'un adhérent déjà inscrit ailleurs sur la plateforme, à réutiliser pour
+   * ses adhésions suivantes — seul l'identifiant d'organisation (préfixe) doit changer d'une
+   * organisation à l'autre, le numéro d'adhérent de la personne reste le même partout. */
+  async findSuffixByEmail(email) {
+    if (!email) return null;
+    const [rows] = await this.db.execute(
+      `SELECT NumAdherent FROM GPOTB02_Adherent WHERE EmailAdh = ? ORDER BY idAdh ASC LIMIT 1`, [email]
+    );
+    if (!rows.length) return null;
+    const parts = rows[0].NumAdherent.split('-');
+    return parts[parts.length - 1];
+  }
+
+  async generateNumAdherent(numAgr, suffixeExistant = null) {
     const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    if (suffixeExistant) {
+      const num = `${numAgr}-${suffixeExistant}`;
+      const [rows] = await this.db.execute('SELECT 1 FROM GPOTB02_Adherent WHERE NumAdherent=?', [num]);
+      if (!rows.length) return num;
+      // Collision extrêmement improbable avec ce suffixe sur cette organisation précise :
+      // on retombe sur la génération aléatoire ci-dessous plutôt que d'échouer.
+    }
     for (let i = 0; i < 100; i++) {
       const rand = Array.from({ length: 4 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
       const num  = `${numAgr}-${rand}`;

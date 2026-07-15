@@ -80,20 +80,26 @@ function wrapHtml(body) {
  * Email envoyé immédiatement après acceptation : annonce + identifiants de connexion.
  * Le paiement de la cotisation se fait après connexion, depuis l'espace personnel.
  */
-function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise, dejaPayee = false }) {
+function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnnuel, codeDevise, dejaPayee = false, numAgrOrganisation = null, usernameExistant = null }) {
   const loginUrl = process.env.APP_URL || 'http://localhost:3000';
   const fmt = n => Number(n || 0).toLocaleString('fr-FR');
   const aDesIdentifiants = !!(username && password);
+  const libelleIdentifiant = numAgrOrganisation ? 'Identifiant adhérent' : 'Identifiant';
 
   const credBlock = aDesIdentifiants ? `
       <p>Voici vos identifiants de connexion, valables dès maintenant et à tout moment par la suite :</p>
       <div class="highlight">
-        Identifiant : <strong style="font-family:monospace">${username}</strong><br>
+        ${numAgrOrganisation ? `Identifiant de l'organisation : <strong style="font-family:monospace">${numAgrOrganisation}</strong><br>` : ''}
+        ${libelleIdentifiant} : <strong style="font-family:monospace">${username}</strong><br>
         Mot de passe : <strong style="font-family:monospace">${password}</strong>
       </div>
       <p style="color:#7c2d12;background:#fff7ed;border-radius:8px;padding:10px 14px;font-size:13px">
         ⚠️ Ce mot de passe ne sera communiqué qu'une seule fois. Conservez-le en lieu sûr et changez-le dès votre première connexion.
-      </p>` : `
+      </p>` : usernameExistant ? `
+      <div class="highlight">
+        Vous avez déjà un compte SoliDev — identifiant : <strong style="font-family:monospace">${usernameExistant}</strong>.
+        Connectez-vous avec l'identifiant et le mot de passe qui vous ont été communiqués lors de votre première inscription.
+      </div>` : `
       <div class="highlight">
         Aucune adresse email n'était disponible pour créer votre accès — contactez l'administrateur.
       </div>`;
@@ -127,8 +133,10 @@ function emailAccepteeAvecIdentifiants(demande, { username, password, montantAnn
   const text = `Bonjour ${demande.repPrenom || ''} ${demande.repNom || demande.nomOrg},\n\n`
     + `Votre demande d'adhésion pour "${demande.nomOrg}" a été ACCEPTÉE.\n\n`
     + (aDesIdentifiants
-        ? `Identifiant : ${username}\nMot de passe : ${password}\n\n`
-        : `Aucune adresse email n'était disponible pour créer votre accès — contactez l'administrateur.\n\n`)
+        ? `${numAgrOrganisation ? `Identifiant de l'organisation : ${numAgrOrganisation}\n` : ''}${libelleIdentifiant} : ${username}\nMot de passe : ${password}\n\n`
+        : usernameExistant
+          ? `Vous avez déjà un compte SoliDev — identifiant : ${usernameExistant}. Connectez-vous avec l'identifiant et le mot de passe qui vous ont été communiqués lors de votre première inscription.\n\n`
+          : `Aucune adresse email n'était disponible pour créer votre accès — contactez l'administrateur.\n\n`)
     + (dejaPayee
         ? `Votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) a déjà été réglée à l'inscription — votre compte est immédiatement actif.\n\n`
         : `Une fois connecté(e), réglez votre cotisation annuelle (${fmt(montantAnnuel)} ${codeDevise}) pour activer pleinement votre compte.\n\n`)

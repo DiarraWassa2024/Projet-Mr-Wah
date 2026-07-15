@@ -74,7 +74,6 @@ router.register('piste-audit', async () => {
             <div class="aud-sub">${total.toLocaleString('fr-FR')} événement${total>1?'s':''} enregistré${total>1?'s':''}</div>
           </div>
           <div class="aud-hd-actions">
-            <button class="btn btn-secondary" id="audExport">⬇ Export CSV</button>
             <button class="btn btn-secondary" id="audPrint">🖨️ Imprimer</button>
           </div>
         </div>
@@ -301,35 +300,11 @@ router.register('piste-audit', async () => {
     document.getElementById('audPrev')?.addEventListener('click', () => { page--; reload(); });
     document.getElementById('audNext')?.addEventListener('click', () => { page++; reload(); });
 
-    // Export CSV (log l'action)
-    document.getElementById('audExport')?.addEventListener('click', async () => {
-      await logEvent('EXPORT', 'Piste d\'audit', `Export CSV — ${data.total} entrées`);
-      exportCSV();
-    });
-
     // Impression (log l'action)
     document.getElementById('audPrint')?.addEventListener('click', async () => {
       await logEvent('IMPRESSION', 'Piste d\'audit', `Impression — ${data.total} entrées`);
       window.print();
     });
-  }
-
-  /* ── Export CSV ──────────────────────────────────────────────── */
-  function exportCSV() {
-    const rows = data.rows || [];
-    if (!rows.length) return;
-    const headers = ['Date/Heure','Utilisateur','ID Utilisateur','Action','Module','Adresse IP','Navigateur','Table cible','ID cible','Détails'];
-    const lines = rows.map(r => [
-      r.dateAction||'', r.adminUser||'', r.userId||'', r.action||'', r.module||'',
-      r.ipAdresse||'', r.navigateur||'', r.table_cible||'', r.id_cible||'', r.details||''
-    ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
-    const csv = [headers.join(','), ...lines].join('\n');
-    const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `audit_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
   }
 
   /* ── Reload ──────────────────────────────────────────────────── */

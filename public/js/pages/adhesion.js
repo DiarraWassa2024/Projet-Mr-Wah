@@ -27,6 +27,11 @@ router.register('adhesion', async (params = {}) => {
     ['Association','ONG','Mutuelle'].includes(params.type) ? params.type : 'Association'
   );
 
+  // L'adhérent doit avoir au moins 18 ans — recalculé à chaque chargement de page.
+  const dateNaiss18ans = new Date();
+  dateNaiss18ans.setFullYear(dateNaiss18ans.getFullYear() - 18);
+  const DATE_NAISS_MAX_18ANS = dateNaiss18ans.toISOString().split('T')[0];
+
   let pays = [];
   try { pays = await api.get('/ref/pays'); } catch(e) {}
   function paysOpts(sel='') {
@@ -38,6 +43,46 @@ router.register('adhesion', async (params = {}) => {
   function fonctionOpts(sel = '') {
     return `<option value="">Choisir une fonction…</option>` +
       FONCTIONS.map(f => `<option value="${f}" ${f === sel ? 'selected' : ''}>${f}</option>`).join('');
+  }
+
+  // Options du rôle/fonction souhaité(e) par un individu rejoignant une organisation
+  // (étape 3 de l'inscription adhérent) — factorisé pour être réutilisé une fois par
+  // organisation sélectionnée lorsque plusieurs organisations sont choisies.
+  function individuFonctionOptionsHtml() {
+    return `
+      <option value="">— Sélectionnez le rôle —</option>
+      <optgroup label="Rôles statutaires">
+        <option>Président(e)</option>
+        <option>Vice-président(e)</option>
+        <option>Secrétaire général(e)</option>
+        <option>Secrétaire</option>
+        <option>Trésorier(ère)</option>
+        <option>Membre du bureau</option>
+        <option>Membre du comité directeur</option>
+        <option>Membre du conseil d'administration</option>
+      </optgroup>
+      <optgroup label="Statuts d'adhésion">
+        <option>Membre fondateur</option>
+        <option>Membre actif</option>
+        <option>Membre honoraire</option>
+        <option>Membre bienfaiteur</option>
+        <option>Membre d'honneur</option>
+        <option>Membre adhérent simple</option>
+        <option>Membre sympathisant</option>
+      </optgroup>
+      <optgroup label="Mutuelles">
+        <option>Membre cotisant</option>
+        <option>Ayant droit</option>
+        <option>Membre participant</option>
+      </optgroup>
+      <optgroup label="ONG">
+        <option>Bénévole</option>
+        <option>Salarié</option>
+        <option>Employé</option>
+        <option>Membre du conseil scientifique</option>
+        <option>Membre du conseil technique</option>
+        <option>Partenaire institutionnel</option>
+      </optgroup>`;
   }
 
   if (!document.getElementById('app')) document.body.innerHTML = '<div id="app"></div>';
@@ -330,9 +375,9 @@ router.register('adhesion', async (params = {}) => {
                     </select>
                   </div>
                   <div class="form-group">
-                    <label>Date de naissance</label>
-                    <input type="date" name="dateNaiss" max="2010-12-31">
-                    <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Doit être antérieure au 31/12/2010</p>
+                    <label>Date de naissance *</label>
+                    <input type="date" name="dateNaiss" required max="${DATE_NAISS_MAX_18ANS}">
+                    <p class="form-hint" style="margin-top:4px;color:#9ca3af;font-size:11px">Vous devez avoir au moins 18 ans</p>
                   </div>
                 </div>
                 <div class="form-row">
@@ -352,7 +397,7 @@ router.register('adhesion', async (params = {}) => {
                   </div>
                   <div class="form-group">
                     <label>Nationalité</label>
-                    <input type="text" name="nationalite" placeholder="Ex : Ivoirienne, Sénégalaise…">
+                    <input type="text" name="nationalite" id="nationaliteInput" placeholder="Ex : Ivoirienne, Malienne…">
                   </div>
                 </div>
                 <div class="form-row">
@@ -378,7 +423,6 @@ router.register('adhesion', async (params = {}) => {
                       <option value="Marié(e)">Marié(e)</option>
                       <option value="Divorcé(e)">Divorcé(e)</option>
                       <option value="Veuf/Veuve">Veuf/Veuve</option>
-                      <option value="Union libre">Union libre</option>
                     </select>
                   </div>
                 </div>
@@ -503,47 +547,7 @@ router.register('adhesion', async (params = {}) => {
             </div>
           </div>
 
-          <div class="fonction-select-wrap">
-            <label class="fonction-label">Fonction / Rôle *</label>
-            <select id="fonctionSelect" class="fonction-select" required>
-              <option value="">— Sélectionnez votre rôle —</option>
-              <optgroup label="Rôles statutaires">
-                <option>Président(e)</option>
-                <option>Vice-président(e)</option>
-                <option>Secrétaire général(e)</option>
-                <option>Secrétaire</option>
-                <option>Trésorier(ère)</option>
-                <option>Membre du bureau</option>
-                <option>Membre du comité directeur</option>
-                <option>Membre du conseil d'administration</option>
-              </optgroup>
-              <optgroup label="Statuts d'adhésion">
-                <option>Membre fondateur</option>
-                <option>Membre actif</option>
-                <option>Membre honoraire</option>
-                <option>Membre bienfaiteur</option>
-                <option>Membre d'honneur</option>
-                <option>Membre adhérent simple</option>
-                <option>Membre sympathisant</option>
-              </optgroup>
-              <optgroup label="Mutuelles">
-                <option>Membre cotisant</option>
-                <option>Ayant droit</option>
-                <option>Membre participant</option>
-              </optgroup>
-              <optgroup label="ONG">
-                <option>Bénévole</option>
-                <option>Salarié</option>
-                <option>Employé</option>
-                <option>Membre du conseil scientifique</option>
-                <option>Membre du conseil technique</option>
-                <option>Partenaire institutionnel</option>
-              </optgroup>
-            </select>
-            <p class="fonction-hint">
-              Ce choix sera transmis à chacune des organisations sélectionnées.
-            </p>
-          </div>
+          <div id="fonctionFieldsContainer"></div>
 
           <div id="fonctionMsg" class="msg error" style="display:none;margin-top:8px"></div>
 
@@ -638,7 +642,7 @@ router.register('adhesion', async (params = {}) => {
         document.querySelector('.adh-card').innerHTML = `
           <div class="pub-success">
             <div class="success-icon">✅</div>
-            <h3>Demande envoyée — dernière étape : le paiement</h3>
+            <h3>Demande envoyée — dernière étape : le paiement de l'organisation</h3>
             <p>${data.message}<br>
                Référence : <strong>#${data.id}</strong></p>
             <p style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#7c2d12;margin:16px 0;text-align:left">
@@ -953,6 +957,27 @@ router.register('adhesion', async (params = {}) => {
     document.getElementById('fonctionStepSub').textContent =
       `Demande pour ${n} organisation${n > 1 ? 's' : ''} — Dossier de : ${dossierData.nom} ${dossierData.prenom}`;
 
+    // Une seule organisation : un seul rôle à choisir. Plusieurs organisations : chacune peut
+    // recevoir un rôle différent (ex. Président dans l'une, simple membre dans une autre).
+    const container = document.getElementById('fonctionFieldsContainer');
+    if (n <= 1) {
+      container.innerHTML = `
+        <div class="fonction-select-wrap">
+          <label class="fonction-label">Fonction / Rôle *</label>
+          <select id="fonctionSelect" class="fonction-select" required>${individuFonctionOptionsHtml()}</select>
+        </div>`;
+    } else {
+      container.innerHTML = [...selectedOrgs].map(numAgr => {
+        const o = orgMap[numAgr] || {};
+        return `
+        <div class="fonction-select-wrap">
+          <label class="fonction-label">Rôle chez ${o.LibOrg || numAgr} *</label>
+          <select class="fonction-select fonction-select-org" data-numagr="${numAgr}" required>${individuFonctionOptionsHtml()}</select>
+        </div>`;
+      }).join('') + `
+        <p class="fonction-hint">Chaque organisation sélectionnée reçoit le rôle que vous lui attribuez ici.</p>`;
+    }
+
     document.getElementById('backToOrgsBtn').addEventListener('click', () => {
       s3.style.display = 'none';
       document.getElementById('step2-section').style.display = '';
@@ -960,14 +985,27 @@ router.register('adhesion', async (params = {}) => {
 
     const fonctionMsg = document.getElementById('fonctionMsg');
     document.getElementById('fonctionSubmitBtn').addEventListener('click', () => {
-      const val = document.getElementById('fonctionSelect').value.trim();
-      if (!val) {
-        fonctionMsg.textContent = 'Veuillez sélectionner une fonction avant de continuer.';
-        fonctionMsg.style.display = 'block';
-        return;
+      const rolesParOrg = {};
+      if (n <= 1) {
+        const val = document.getElementById('fonctionSelect').value.trim();
+        if (!val) {
+          fonctionMsg.textContent = 'Veuillez sélectionner une fonction avant de continuer.';
+          fonctionMsg.style.display = 'block';
+          return;
+        }
+        rolesParOrg[[...selectedOrgs][0]] = val;
+      } else {
+        const selects = [...document.querySelectorAll('.fonction-select-org')];
+        const manquant = selects.some(sel => !sel.value.trim());
+        if (manquant) {
+          fonctionMsg.textContent = 'Veuillez sélectionner un rôle pour chaque organisation avant de continuer.';
+          fonctionMsg.style.display = 'block';
+          return;
+        }
+        selects.forEach(sel => { rolesParOrg[sel.dataset.numagr] = sel.value.trim(); });
       }
       fonctionMsg.style.display = 'none';
-      dossierData.fonctionSouhaitee = val;
+      dossierData.rolesParOrg = rolesParOrg;
       sendMultiAdhesion();
     });
   }
@@ -986,8 +1024,13 @@ router.register('adhesion', async (params = {}) => {
       const dossierPayload = { ...dossierData };
       delete dossierPayload._photoFile;
       delete dossierPayload._photoCNIFile;
+      delete dossierPayload.rolesParOrg;
       fd.append('dossier', JSON.stringify(dossierPayload));
-      fd.append('orgs',    JSON.stringify(Array.from(selectedOrgs)));
+      // Chaque organisation part avec son propre rôle (rôles distincts si plusieurs orgs choisies).
+      const orgsPayload = [...selectedOrgs].map(numAgr => ({
+        numAgr, fonctionSouhaitee: dossierData.rolesParOrg?.[numAgr] || '',
+      }));
+      fd.append('orgs', JSON.stringify(orgsPayload));
       if (dossierData._photoFile)    fd.append('photo',    dossierData._photoFile);
       if (dossierData._photoCNIFile) fd.append('photoCNI', dossierData._photoCNIFile);
 

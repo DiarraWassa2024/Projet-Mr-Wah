@@ -17,7 +17,7 @@ async function getSortedTableNames() {
   );
   return tables.map(t => t.name);
 }
-function codeForIndex(i) { return `TBL-${String(i + 1).padStart(3, '0')}`; }
+function codeForIndex(i) { return `gpo${String(i + 1).padStart(2, '0')}`; }
 
 // ── GET /api/db-admin/tables — liste des tables (codes opaques) + nombre de lignes ─
 router.get('/tables', async (req, res) => {
@@ -41,7 +41,7 @@ router.get('/tables/:code', async (req, res) => {
   const code = req.params.code;
   try {
     const names = await getSortedTableNames();
-    const match = /^TBL-(\d+)$/.exec(code);
+    const match = /^gpo(\d+)$/i.exec(code);
     const idx   = match ? parseInt(match[1], 10) - 1 : -1;
     const name  = names[idx];
     if (!name) return notFound(res, 'Table introuvable');
